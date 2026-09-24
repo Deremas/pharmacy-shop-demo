@@ -117,7 +117,7 @@ const ACTION_PERMISSIONS: Record<string, string> = {
   updateCustomer: "customers.update",
   addSupplier: "suppliers.create",
   updateSupplier: "suppliers.update",
-  addCategory: "inventory.items.create",
+  addCategory: "inventory.categories.manage",
   updateCategory: "inventory.categories.manage",
   deleteCategory: "inventory.categories.manage",
   addUnit: "inventory.items.create",
@@ -158,6 +158,7 @@ const ACTION_PERMISSIONS: Record<string, string> = {
   voidSale: "sales.delete",
   createSaleReturn: "sales.update",
   createPurchaseReturn: "purchases.update",
+  recordDamage: "inventory.stock.adjust",
 };
 
 export async function GET() {
@@ -1895,10 +1896,6 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === "recordDamage") {
-    if (currentUser.role !== "Super Admin") {
-      return NextResponse.json({ ok: false, error: "Only Super Admin can record damage." }, { status: 403 });
-    }
-
     const quantity = Number(payload.quantity);
     const reason = String(payload.reason || "").trim();
     if (!payload.itemId || !payload.locationId || !Number.isFinite(quantity) || quantity <= 0) {

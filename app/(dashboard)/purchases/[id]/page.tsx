@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Calendar, CreditCard, MapPin, Package, ReceiptText, Truck } from "lucide-react";
 
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { BankAccountSelect, bankAccountsOnly } from "@/components/bank-account-select";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -13,6 +14,7 @@ export default function PurchaseDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { purchases, suppliers, locations, items, bankAccounts, products, createPurchaseReturn } = useAppData();
+  const can = useCan();
   const [qtyByLine, setQtyByLine] = useState<Record<string, string>>({});
   const [refundMethod, setRefundMethod] = useState("CASH");
   const [bankAccountId, setBankAccountId] = useState("");
@@ -139,6 +141,7 @@ export default function PurchaseDetailPage() {
           </div>
         </div>
       </div>
+      {can("purchases.update") ? (
       <form
         className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
         onSubmit={async (event) => {
@@ -202,6 +205,7 @@ export default function PurchaseDetailPage() {
         </div>
         {returnError ? <p className="mt-3 text-sm font-bold text-rose-600">{returnError}</p> : null}
       </form>
+      ) : null}
     </div>
   );
 }

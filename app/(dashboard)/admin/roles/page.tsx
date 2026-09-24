@@ -4,11 +4,13 @@ import React from "react";
 import Link from "next/link";
 import { Edit3, Loader2, Lock, Shield, Trash2 } from "lucide-react";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { cn } from "@/lib/utils";
 import { formatPermissionLabel } from "@/lib/permission-catalog";
 
 export default function RoleManagementPage() {
   const { roles, deleteRole, refresh, loading } = useAppData();
+  const can = useCan();
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
 
@@ -30,13 +32,15 @@ export default function RoleManagementPage() {
           <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Role Management</h1>
           <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-500">Global roles used by every business</p>
         </div>
-        <Link
-          href="/admin/roles/create"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-900/20 transition-all hover:bg-indigo-500 active:scale-95"
-        >
-          <span className="text-base leading-none">+</span>
-          Create Role
-        </Link>
+        {can("admin.roles.manage") ? (
+          <Link
+            href="/admin/roles/create"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-900/20 transition-all hover:bg-indigo-500 active:scale-95"
+          >
+            <span className="text-base leading-none">+</span>
+            Create Role
+          </Link>
+        ) : null}
       </div>
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700">{error}</div>}
@@ -76,13 +80,16 @@ export default function RoleManagementPage() {
                   <p className="mt-3 text-sm text-slate-500">{role.description || "No description"}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Link
-                    href={`/admin/roles/${role.id}/edit`}
-                    className="rounded-lg p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30"
-                    title="Edit role"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </Link>
+                  {can("admin.roles.manage") ? (
+                    <Link
+                      href={`/admin/roles/${role.id}/edit`}
+                      className="rounded-lg p-2 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30"
+                      title="Edit role"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Link>
+                  ) : null}
+                  {can("admin.roles.manage") ? (
                   <button
                     type="button"
                     disabled={role.userCount > 0 || role.isSystem}
@@ -92,6 +99,7 @@ export default function RoleManagementPage() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
+                  ) : null}
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">

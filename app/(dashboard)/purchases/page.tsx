@@ -27,6 +27,8 @@ export default function PurchasesPage() {
   const permissionKeys = new Set<string>(user?.permissions || []);
   const canDeletePurchase =
     user?.role === "Super Admin" || permissionKeys.has("purchases.delete");
+  const canCreatePurchase =
+    user?.role === "Super Admin" || permissionKeys.has("purchases.create");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
@@ -97,14 +99,16 @@ export default function PurchasesPage() {
               : "Global Supply Chain Management"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/purchases/create"
-            className="page-action gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black shadow-lg shadow-indigo-900/20 hover:bg-indigo-500 active:scale-95 transition-all uppercase tracking-widest cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> New Purchase
-          </Link>
-        </div>
+        {canCreatePurchase ? (
+          <div className="flex items-center gap-3">
+            <Link
+              href="/purchases/create"
+              className="page-action gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black shadow-lg shadow-indigo-900/20 hover:bg-indigo-500 active:scale-95 transition-all uppercase tracking-widest cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> New Purchase
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl overflow-hidden shadow-sm">

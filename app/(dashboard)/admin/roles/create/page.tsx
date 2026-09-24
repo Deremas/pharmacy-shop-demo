@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckSquare2, ChevronDown, Loader2, Save, Square } from "lucide-react";
 import { useAppData } from "@/lib/client/useAppData";
 import { cn } from "@/lib/utils";
-import { formatPermissionLabel, groupPermissions } from "@/lib/permission-catalog";
+import { formatPermissionLabel, groupPermissions, permissionsInCatalogOrder } from "@/lib/permission-catalog";
 
 export default function CreateRolePage() {
   const router = useRouter();
@@ -22,7 +22,10 @@ export default function CreateRolePage() {
   const allFormSelected = allPermissionIds.length > 0 && allPermissionIds.every((id) => form.permissionIds.includes(id));
 
   React.useEffect(() => {
-    if (Array.isArray(storePermissions) && storePermissions.length > 0) setAllPermissions(storePermissions);
+    if (!Array.isArray(storePermissions) || storePermissions.length === 0) return;
+    const ordered = permissionsInCatalogOrder(storePermissions);
+    setAllPermissions(ordered);
+    setExpandedModules(new Set(ordered.map((permission) => permission.module)));
   }, [storePermissions]);
 
   const saveRole = async (event: React.FormEvent) => {

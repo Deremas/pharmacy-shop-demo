@@ -4,11 +4,13 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { Plus, ShieldCheck, Pencil, X, UserCircle2, Trash2, UserX, UserCheck, AlertCircle } from "lucide-react";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function UserManagementPage() {
   const { users, locations, availableLocations, deleteUser, updateUserStatus } = useAppData();
+  const can = useCan();
   const businesses = availableLocations?.length ? availableLocations : locations;
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any>(null);
@@ -34,12 +36,14 @@ export default function UserManagementPage() {
               Control access levels and pharmacy assignments. Users and roles are global across all branches.
             </p>
           </div>
-          <Link
-            href="/admin/users/create"
-            className="flex items-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-xl shadow-indigo-900/20 transition-all hover:bg-indigo-500 active:scale-95"
-          >
-            <Plus className="h-4 w-4" /> Add User
-          </Link>
+          {can("admin.users.create") ? (
+            <Link
+              href="/admin/users/create"
+              className="flex items-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-xl shadow-indigo-900/20 transition-all hover:bg-indigo-500 active:scale-95"
+            >
+              <Plus className="h-4 w-4" /> Add User
+            </Link>
+          ) : null}
         </div>
 
         <AnimatePresence>
@@ -126,40 +130,46 @@ export default function UserManagementPage() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserToToggleStatus(user);
-                          setIsStatusModalOpen(true);
-                        }}
-                        title={user.isActive ? "Deactivate User" : "Activate User"}
-                        className={cn(
-                          "rounded-xl p-2 transition-all",
-                          user.isActive
-                            ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10"
-                            : "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10",
-                        )}
-                      >
-                        {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                      </button>
-                      <Link
-                        href={`/admin/users/${user.id}/edit`}
-                        title="Edit User"
-                        className="rounded-xl p-2 text-slate-600 transition-all hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/10"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserToDelete(user);
-                          setIsDeleteDialogOpen(true);
-                        }}
-                        title="Delete User"
-                        className="rounded-xl p-2 text-slate-600 transition-all hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {can("admin.users.update") ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserToToggleStatus(user);
+                            setIsStatusModalOpen(true);
+                          }}
+                          title={user.isActive ? "Deactivate User" : "Activate User"}
+                          className={cn(
+                            "rounded-xl p-2 transition-all",
+                            user.isActive
+                              ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                              : "text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10",
+                          )}
+                        >
+                          {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                        </button>
+                      ) : null}
+                      {can("admin.users.update") ? (
+                        <Link
+                          href={`/admin/users/${user.id}/edit`}
+                          title="Edit User"
+                          className="rounded-xl p-2 text-slate-600 transition-all hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/10"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                      ) : null}
+                      {can("admin.users.delete") ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserToDelete(user);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                          title="Delete User"
+                          className="rounded-xl p-2 text-slate-600 transition-all hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

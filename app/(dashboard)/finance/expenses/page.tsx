@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Wallet, Plus, Search } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 
 export default function ExpensesPage() {
   const { expenses, bankAccounts, currentLocation, locations } = useAppData();
+  const can = useCan();
   const [search, setSearch] = useState("");
 
   const filteredExpenses = expenses.filter((e) => {
@@ -30,12 +32,14 @@ export default function ExpensesPage() {
             {currentLocation ? `${currentLocation.name} operational costs` : "Operational costs for the selected business"}
           </p>
         </div>
-        <Link
-          href="/finance/expenses/create"
-          className="page-action gap-2 rounded-2xl bg-rose-600 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-rose-900/20 transition-all hover:bg-rose-500 active:scale-95"
-        >
-          <Plus className="h-4 w-4" /> Record Expense
-        </Link>
+        {can("finance.expenses.create") ? (
+          <Link
+            href="/finance/expenses/create"
+            className="page-action gap-2 rounded-2xl bg-rose-600 px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-rose-900/20 transition-all hover:bg-rose-500 active:scale-95"
+          >
+            <Plus className="h-4 w-4" /> Record Expense
+          </Link>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

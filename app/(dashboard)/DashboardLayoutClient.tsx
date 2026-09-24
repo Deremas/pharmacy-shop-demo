@@ -57,7 +57,9 @@ function AppLoadingScreen() {
 
 const routePermissions: { prefix: string; permission?: string; anyPermission?: string[] }[] = [
   { prefix: "/admin/permissions", permission: "admin.permissions.view" },
+  { prefix: "/admin/roles/create", permission: "admin.roles.manage" },
   { prefix: "/admin/roles", permission: "admin.roles.view" },
+  { prefix: "/admin/users/create", permission: "admin.users.create" },
   { prefix: "/admin/users", permission: "admin.users.view" },
   { prefix: "/admin/settings", permission: "admin.settings.view" },
   { prefix: "/admin/transactions", permission: "admin.transactions.view" },
@@ -82,6 +84,7 @@ const routePermissions: { prefix: string; permission?: string; anyPermission?: s
   { prefix: "/reports/sales", permission: "reports.sales.view" },
   { prefix: "/reports", permission: "reports.view" },
   { prefix: "/finance/cash-to-bank", permission: "finance.cash_to_bank.view" },
+  { prefix: "/finance/expenses/create", permission: "finance.expenses.create" },
   { prefix: "/finance/expenses", permission: "finance.expenses.view" },
   { prefix: "/finance/banks", permission: "finance.banks.view" },
   { prefix: "/finance/transactions", permission: "finance.transactions.view" },
@@ -91,12 +94,16 @@ const routePermissions: { prefix: string; permission?: string; anyPermission?: s
   { prefix: "/purchases/create", permission: "purchases.create" },
   { prefix: "/purchases/add", permission: "purchases.create" },
   { prefix: "/purchases", permission: "purchases.view" },
+  { prefix: "/sales/pending", permission: "sales.create" },
   { prefix: "/sales/create", permission: "sales.create" },
   { prefix: "/sales/pos", permission: "sales.pos" },
   { prefix: "/sales/sold-items", permission: "sales.view" },
   { prefix: "/sales", permission: "sales.view" },
+  { prefix: "/customers/credits/pay", permission: "customers.payments.create" },
   { prefix: "/customers", permission: "customers.view" },
+  { prefix: "/suppliers/debts/pay", permission: "suppliers.payments.create" },
   { prefix: "/suppliers", permission: "suppliers.view" },
+  { prefix: "/store/transfers/create", permission: "inventory.transfers.create" },
   { prefix: "/store/transfers", permission: "inventory.transfers.view" },
   { prefix: "/store/movements", permission: "inventory.movements.view" },
   { prefix: "/store/damage", permission: "inventory.stock.view" },
@@ -104,6 +111,7 @@ const routePermissions: { prefix: string; permission?: string; anyPermission?: s
   { prefix: "/items/create", anyPermission: ["inventory.items.create", "inventory.items.update"] },
   { prefix: "/items/categories", permission: "inventory.categories.view" },
   { prefix: "/items/low-stock", permission: "inventory.stock.view" },
+  { prefix: "/items/expiry", permission: "inventory.expiry.view" },
   { prefix: "/items", permission: "inventory.items.view" },
   { prefix: "/dashboard", permission: "dashboard.view" },
 ];
@@ -168,11 +176,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .filter((entry) => pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`))
       .sort((a, b) => b.prefix.length - a.prefix.length)[0];
     const permissionKeys = new Set<string>(user.permissions || []);
+    const actionPermission = /\/admin\/users\/[^/]+\/edit$/.test(pathname)
+      ? "admin.users.update"
+      : /\/admin\/roles\/[^/]+\/edit$/.test(pathname)
+        ? "admin.roles.manage"
+        : "";
     const allowed =
       user.role === "Super Admin" ||
-      !requiredRoute ||
-      (requiredRoute.permission ? permissionKeys.has(requiredRoute.permission) : false) ||
-      Boolean(requiredRoute.anyPermission?.some((permission) => permissionKeys.has(permission)));
+      (actionPermission
+        ? permissionKeys.has(actionPermission)
+        : !requiredRoute ||
+          (requiredRoute.permission ? permissionKeys.has(requiredRoute.permission) : false) ||
+          Boolean(requiredRoute.anyPermission?.some((permission) => permissionKeys.has(permission))));
     if (!allowed) {
       router.replace("/dashboard");
     }

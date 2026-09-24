@@ -71,12 +71,17 @@ const menuItems: MenuItem[] = [
       {
         label: "Expiry",
         path: "/items/expiry",
-        permission: "inventory.stock.view",
+        permission: "inventory.expiry.view",
       },
       {
         label: "Damage",
         path: "/store/damage",
         permission: "inventory.stock.view",
+      },
+      {
+        label: "Transfers",
+        path: "/store/transfers",
+        permission: "inventory.transfers.view",
       },
       {
         label: "Stock Movements",
@@ -202,6 +207,11 @@ const menuItems: MenuItem[] = [
         path: "/finance/banks",
         permission: "finance.banks.view",
       },
+      {
+        label: "Tax Report",
+        path: "/finance/tax",
+        permission: "finance.tax.view",
+      },
     ],
   },
   {
@@ -215,6 +225,31 @@ const menuItems: MenuItem[] = [
         label: "Reports",
         path: "/reports",
         permission: "reports.view",
+      },
+      {
+        label: "Sales Reports",
+        path: "/reports/sales",
+        permission: "reports.sales.view",
+      },
+      {
+        label: "Inventory Reports",
+        path: "/reports/inventory",
+        permission: "reports.inventory.view",
+      },
+      {
+        label: "Finance Reports",
+        path: "/reports/finance",
+        permission: "reports.finance.view",
+      },
+      {
+        label: "Audit Report",
+        path: "/reports/audit",
+        permission: "reports.audit.view",
+      },
+      {
+        label: "Pharmacies",
+        path: "/admin/locations",
+        permission: "admin.locations.view",
       },
       {
         label: "User Management",

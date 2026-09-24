@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Calendar, CreditCard, MapPin, Package, Receipt, User } from "lucide-react";
 
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { BankAccountSelect, bankAccountsOnly } from "@/components/bank-account-select";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -13,6 +14,7 @@ export default function SaleDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { sales, customers, locations, items, bankAccounts, products, saleReturns = [], createSaleReturn } = useAppData();
+  const can = useCan();
   const [qtyByLine, setQtyByLine] = useState<Record<string, string>>({});
   const [refundMethod, setRefundMethod] = useState("CASH");
   const [bankAccountId, setBankAccountId] = useState("");
@@ -144,7 +146,7 @@ export default function SaleDetailPage() {
           </div>
         </div>
       </div>
-      {sale.status !== "VOIDED" ? (
+      {sale.status !== "VOIDED" && can("sales.update") ? (
         <form
           className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
           onSubmit={async (event) => {

@@ -9,9 +9,11 @@ import { NumericInput } from "@/components/numeric-input";
 import { isTenantBusiness, locationsForCurrentBusiness } from "@/lib/businesses";
 import { formatCurrency } from "@/lib/utils";
 import { calculateLocationCashBalance, useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 
 export default function BankAccountsPage() {
   const state = useAppData();
+  const can = useCan();
   const ledger = buildLedgerTransactions(state);
   const [selectedAccountId, setSelectedAccountId] = React.useState<string | null>(null);
   const [editingAccountId, setEditingAccountId] = React.useState<string | null>(null);
@@ -101,13 +103,15 @@ export default function BankAccountsPage() {
           </h1>
           <p className="mt-1 text-xs text-slate-500 sm:text-sm">Manage your business bank accounts and internal cash drawers.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => openEditor()}
-          className="page-action gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-900/20 transition-all hover:bg-indigo-500 active:scale-95 sm:text-sm"
-        >
-          <Plus className="h-4 w-4" /> Add Account
-        </button>
+        {can("finance.banks.create") ? (
+          <button
+            type="button"
+            onClick={() => openEditor()}
+            className="page-action gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-900/20 transition-all hover:bg-indigo-500 active:scale-95 sm:text-sm"
+          >
+            <Plus className="h-4 w-4" /> Add Account
+          </button>
+        ) : null}
       </div>
 
       <section className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm dark:border-indigo-950/50 dark:bg-zinc-900">
@@ -119,13 +123,15 @@ export default function BankAccountsPage() {
               {state.currentLocation?.name || "Current business"} cash drawer only.
             </p>
           </div>
-          <Link
-            href="/finance/cash-to-bank"
-            className="page-action h-11 gap-2 self-end rounded-xl bg-indigo-600 px-5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-900/20 transition hover:bg-indigo-500"
-          >
-            Deposit Cash to Bank
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
+          {can("finance.cash_to_bank.create") ? (
+            <Link
+              href="/finance/cash-to-bank"
+              className="page-action h-11 gap-2 self-end rounded-xl bg-indigo-600 px-5 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-900/20 transition hover:bg-indigo-500"
+            >
+              Deposit Cash to Bank
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          ) : null}
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           {cashLocationBalances.map((location) => {
@@ -158,7 +164,7 @@ export default function BankAccountsPage() {
         {bankOnlyAccounts.map((account) => {
           const currentBalance = displayedBalanceFor(account);
           const transactionCount = transactionsFor(account.id).length;
-          const canDelete = account.accountType !== "CASH" && transactionCount === 0;
+          const canDelete = can("finance.banks.delete") && account.accountType !== "CASH" && transactionCount === 0;
 
           return (
             <div key={account.id} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
@@ -192,14 +198,16 @@ export default function BankAccountsPage() {
                   >
                     Details <ArrowUpRight className="h-3 w-3" />
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => openEditor(account)}
-                    className="rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                    aria-label={`Edit ${account.displayName}`}
-                  >
-                    <Edit3 className="h-3.5 w-3.5" />
-                  </button>
+                  {can("finance.banks.update") ? (
+                    <button
+                      type="button"
+                      onClick={() => openEditor(account)}
+                      className="rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                      aria-label={`Edit ${account.displayName}`}
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     disabled={!canDelete}
@@ -246,14 +254,17 @@ export default function BankAccountsPage() {
             </div>
 
             <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={() => openEditor(selectedAccount)}
-                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-900/20"
-              >
-                <Edit3 className="h-4 w-4" />
-                Edit
-              </button>
+              {can("finance.banks.update") ? (
+                <button
+                  type="button"
+                  onClick={() => openEditor(selectedAccount)}
+                  className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-indigo-900/20"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  Edit
+                </button>
+              ) : null}
+              {can("finance.banks.delete") ? (
               <button
                 type="button"
                 disabled={selectedAccount.accountType === "CASH" || selectedTransactions.length > 0}
@@ -263,6 +274,7 @@ export default function BankAccountsPage() {
                 <Trash2 className="h-4 w-4" />
                 Delete
               </button>
+              ) : null}
             </div>
 
             <div className="mt-8">

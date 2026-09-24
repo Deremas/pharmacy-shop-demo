@@ -11,10 +11,12 @@ import {
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function LocationsPage() {
   const { locations, availableLocations, addLocation, reportData, items, sales } = useAppData();
+  const can = useCan();
   const businesses = availableLocations?.length ? availableLocations : locations;
   const catalogItems = reportData?.items || items;
   const catalogSales = reportData?.sales || sales;
@@ -48,13 +50,15 @@ export default function LocationsPage() {
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">Pharmacies</h1>
             <p className="text-slate-600 dark:text-zinc-400 text-sm font-bold uppercase tracking-widest mt-1 font-black text-[10px]">Three pharmacy branches. Switch in the top bar to work in one.</p>
           </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-[1.5rem] text-sm font-black shadow-xl shadow-indigo-900/30 hover:bg-indigo-500 active:scale-95 transition-all uppercase tracking-widest"
-          >
-            <Plus className="w-5 h-5 font-bold" />
-            ADD PHARMACY
-          </button>
+          {can("admin.locations.create") ? (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-[1.5rem] text-sm font-black shadow-xl shadow-indigo-900/30 hover:bg-indigo-500 active:scale-95 transition-all uppercase tracking-widest"
+            >
+              <Plus className="w-5 h-5 font-bold" />
+              ADD PHARMACY
+            </button>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

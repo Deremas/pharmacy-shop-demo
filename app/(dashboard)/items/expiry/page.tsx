@@ -2,11 +2,13 @@
 
 import React, { useMemo, useState } from "react";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { daysUntilExpiry, expiryBand, isBatchExpired } from "@/lib/inventory/fefo";
 import { formatUnitLabel } from "@/lib/item-display";
 
 export default function ExpiryPage() {
   const { inventoryBatches = [], items = [], products = [], currentLocation, disposeBatch } = useAppData();
+  const can = useCan();
   const [band, setBand] = useState("All");
   const [busyId, setBusyId] = useState("");
 
@@ -89,9 +91,11 @@ export default function ExpiryPage() {
                 <td className="px-4 py-3">{row.buyingPrice} / {row.unit}</td>
                 <td className={`px-4 py-3 font-bold ${isBatchExpired(row.expireDate) ? "text-rose-600" : ""}`}>{row.band}</td>
                 <td className="px-4 py-3 text-right">
+                  {can("inventory.stock.adjust") ? (
                   <button type="button" disabled={busyId === row.id} onClick={() => dispose(row)} className="rounded-xl bg-rose-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-60">
                     Dispose
                   </button>
+                  ) : null}
                 </td>
               </tr>
             ))}

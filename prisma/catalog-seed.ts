@@ -34,6 +34,7 @@ type PrismaLike = {
   };
   unit: {
     findFirst: (args: any) => Promise<{ id: string } | null>;
+    findMany: (args: any) => Promise<{ id: string; name: string }[]>;
     upsert: (args: any) => Promise<{ id: string }>;
     create: (args: any) => Promise<{ id: string }>;
     deleteMany: (args: any) => Promise<unknown>;
@@ -41,14 +42,20 @@ type PrismaLike = {
   item: {
     upsert: (args: any) => Promise<{ id: string }>;
     updateMany: (args: any) => Promise<unknown>;
+    createMany: (args: any) => Promise<unknown>;
+    count: (args: any) => Promise<number>;
+    findMany: (args: any) => Promise<{ id: string; code: string | null }[]>;
   };
   saleItem: {
     count: (args: any) => Promise<number>;
   };
   inventoryBatch: {
     findFirst: (args: any) => Promise<{ id: string } | null>;
+    findMany: (args: any) => Promise<{ itemId: string; batchCode: string | null }[]>;
     update: (args: any) => Promise<unknown>;
+    updateMany: (args: any) => Promise<unknown>;
     create: (args: any) => Promise<unknown>;
+    createMany: (args: any) => Promise<unknown>;
   };
 };
 
@@ -814,125 +821,124 @@ async function ensureUnit(prisma: PrismaLike, locationId: string, unit: CatalogI
   });
 }
 
-async function syncBatches(
-  prisma: PrismaLike,
-  itemId: string,
-  locationId: string,
-  batches: CatalogBatch[],
-  buyingPrice: number,
-  sellingPrice: number,
-) {
-  const soldCount = await prisma.saleItem.count({ where: { itemId } });
-  if (soldCount > 0) return;
-
-  const opening = await prisma.inventoryBatch.findFirst({
-    where: { itemId, locationId, batchCode: "OPENING" },
-  });
-  if (opening) {
-    await prisma.inventoryBatch.update({
-      where: { id: opening.id },
-      data: { quantityIn: 0, remainingQuantity: 0, status: "DEPLETED" },
-    });
-  }
-
-  for (const batch of batches) {
-    const cost = batch.buyingPrice ?? buyingPrice;
-    const price = batch.sellingPrice ?? sellingPrice;
-    const existing = await prisma.inventoryBatch.findFirst({
-      where: { itemId, locationId, batchCode: batch.batchCode },
-    });
-    const data = {
-      quantityIn: batch.quantity,
-      remainingQuantity: batch.quantity,
-      buyingPrice: cost,
-      sellingPrice: price,
-      expireDate: expiryDate(batch.expireDate),
-      batchCode: batch.batchCode,
-      status: batch.quantity > 0 ? "ACTIVE" : "DEPLETED",
-      reservedQuantity: 0,
-    };
-    if (existing) {
-      await prisma.inventoryBatch.update({ where: { id: existing.id }, data });
-      continue;
-    }
-    await prisma.inventoryBatch.create({
-      data: {
-        itemId,
-        locationId,
-        ...data,
-      },
-    });
-  }
-}
-
 async function seedLocationCatalog(
   prisma: PrismaLike,
   locationId: string,
   items: CatalogItem[],
 ) {
   const categoryIds = new Map<string, string>();
-  let seeded = 0;
-
-  for (const item of items) {
-    if (!categoryIds.has(item.category)) {
-      const category = await ensureCategory(prisma, locationId, item.category);
-      categoryIds.set(item.category, category.id);
-    }
-
-    const unit = await ensureUnit(prisma, locationId, item.unit);
-    const upserted = await prisma.item.upsert({
-      where: {
-        locationId_code: {
-          locationId,
-          code: item.code,
-        },
-      },
-      update: {
-        name: item.name,
-        categoryId: categoryIds.get(item.category),
-        unitId: unit.id,
-        defaultBuyingPrice: item.buyingPrice,
-        defaultSellingPrice: item.sellingPrice,
-        lowStockAlert: item.lowStockAlert ?? 10,
-        genericName: item.genericName,
-        brandName: item.brandName,
-        dosageForm: item.dosageForm,
-        strength: item.strength,
-        packSize: item.packSize,
-        manufacturer: item.manufacturer,
-        countryOfOrigin: item.countryOfOrigin,
-        requiresPrescription: item.requiresPrescription,
-        isControlled: Boolean(item.isControlled),
-        isActive: true,
-      },
-      create: {
-        id: itemIdFor(locationId, item.code),
-        locationId,
-        name: item.name,
-        code: item.code,
-        categoryId: categoryIds.get(item.category),
-        unitId: unit.id,
-        defaultBuyingPrice: item.buyingPrice,
-        defaultSellingPrice: item.sellingPrice,
-        lowStockAlert: item.lowStockAlert ?? 10,
-        genericName: item.genericName,
-        brandName: item.brandName,
-        dosageForm: item.dosageForm,
-        strength: item.strength,
-        packSize: item.packSize,
-        manufacturer: item.manufacturer,
-        countryOfOrigin: item.countryOfOrigin,
-        requiresPrescription: item.requiresPrescription,
-        isControlled: Boolean(item.isControlled),
-        isActive: true,
-      },
-    });
-
-    await syncBatches(prisma, upserted.id, locationId, item.batches, item.buyingPrice, item.sellingPrice);
-    seeded += 1;
+  for (const name of new Set(items.map((item) => item.category))) {
+    const category = await ensureCategory(prisma, locationId, name);
+    categoryIds.set(name, category.id);
   }
 
-  return seeded;
+  const unitRows = await prisma.unit.findMany({
+    where: { locationId },
+    select: { id: true, name: true },
+  });
+  const unitIdByName = new Map(unitRows.map((unit) => [unit.name, unit.id]));
+  for (const unitName of new Set(items.map((item) => item.unit))) {
+    if (unitIdByName.has(unitName)) continue;
+    const unit = await ensureUnit(prisma, locationId, unitName);
+    unitIdByName.set(unitName, unit.id);
+  }
+
+  const existingItemCount = await prisma.item.count({
+    where: { locationId, code: { in: items.map((item) => item.code) } },
+  });
+  const itemRows = items.map((item) => ({
+    id: itemIdFor(locationId, item.code),
+    locationId,
+    name: item.name,
+    code: item.code,
+    categoryId: categoryIds.get(item.category),
+    unitId: unitIdByName.get(item.unit),
+    defaultBuyingPrice: item.buyingPrice,
+    defaultSellingPrice: item.sellingPrice,
+    lowStockAlert: item.lowStockAlert ?? 10,
+    genericName: item.genericName,
+    brandName: item.brandName,
+    dosageForm: item.dosageForm,
+    strength: item.strength,
+    packSize: item.packSize,
+    manufacturer: item.manufacturer,
+    countryOfOrigin: item.countryOfOrigin,
+    requiresPrescription: item.requiresPrescription,
+    isControlled: Boolean(item.isControlled),
+    isActive: true,
+  }));
+  await prisma.item.createMany({ data: itemRows, skipDuplicates: true });
+  if (existingItemCount > 0) {
+    for (const item of items) {
+      await prisma.item.updateMany({
+        where: { locationId, code: item.code },
+        data: {
+          name: item.name,
+          categoryId: categoryIds.get(item.category),
+          unitId: unitIdByName.get(item.unit),
+          defaultBuyingPrice: item.buyingPrice,
+          defaultSellingPrice: item.sellingPrice,
+          lowStockAlert: item.lowStockAlert ?? 10,
+          genericName: item.genericName,
+          brandName: item.brandName,
+          dosageForm: item.dosageForm,
+          strength: item.strength,
+          packSize: item.packSize,
+          manufacturer: item.manufacturer,
+          countryOfOrigin: item.countryOfOrigin,
+          requiresPrescription: item.requiresPrescription,
+          isControlled: Boolean(item.isControlled),
+          isActive: true,
+        },
+      });
+    }
+  }
+
+  const saved = await prisma.item.findMany({
+    where: { locationId, code: { in: items.map((item) => item.code) } },
+    select: { id: true, code: true },
+  });
+  const itemIdByCode = new Map(saved.map((item) => [item.code, item.id]));
+  const itemIds = saved.map((item) => item.id);
+  const soldCount = itemIds.length
+    ? await prisma.saleItem.count({ where: { itemId: { in: itemIds } } })
+    : 0;
+
+  if (soldCount === 0 && itemIds.length > 0) {
+    await prisma.inventoryBatch.updateMany({
+      where: { locationId, itemId: { in: itemIds }, batchCode: "OPENING" },
+      data: { quantityIn: 0, remainingQuantity: 0, status: "DEPLETED" },
+    });
+
+    const existingBatches = await prisma.inventoryBatch.findMany({
+      where: { locationId, itemId: { in: itemIds } },
+      select: { itemId: true, batchCode: true },
+    });
+    const existingKeys = new Set(existingBatches.map((batch) => `${batch.itemId}|${batch.batchCode}`));
+    const batchRows = items.flatMap((item) => {
+      const itemId = itemIdByCode.get(item.code);
+      if (!itemId) return [];
+      return item.batches
+        .filter((batch) => !existingKeys.has(`${itemId}|${batch.batchCode}`))
+        .map((batch) => ({
+          itemId,
+          locationId,
+          batchCode: batch.batchCode,
+          quantityIn: batch.quantity,
+          remainingQuantity: batch.quantity,
+          buyingPrice: batch.buyingPrice ?? item.buyingPrice,
+          sellingPrice: batch.sellingPrice ?? item.sellingPrice,
+          expireDate: expiryDate(batch.expireDate),
+          status: batch.quantity > 0 ? "ACTIVE" : "DEPLETED",
+          reservedQuantity: 0,
+        }));
+    });
+    if (batchRows.length > 0) {
+      await prisma.inventoryBatch.createMany({ data: batchRows });
+    }
+  }
+
+  return items.length;
 }
 
 export async function seedBusinessCatalogs(prisma: PrismaLike) {

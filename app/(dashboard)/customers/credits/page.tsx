@@ -5,10 +5,12 @@ import Link from "next/link";
 import { CreditCard, ArrowUpRight, History, Clock, ShieldAlert } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { listCreditSales } from "@/lib/finance/credit-ledger";
 
 export default function CustomerCredits() {
   const { customers, sales, customerPayments, bankAccounts } = useAppData();
+  const can = useCan();
   const [filterType, setFilterType] = useState<"ALL" | "PENDING" | "PAYMENTS">("ALL");
 
   const paymentAllocations = useMemo(
@@ -83,12 +85,14 @@ export default function CustomerCredits() {
           </h1>
           <p className="mt-1 text-slate-500">Track outstanding balances and credit aging.</p>
         </div>
-        <Link
-          href="/customers/credits/pay"
-          className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-500 active:scale-95"
-        >
-          Record Credit Payment
-        </Link>
+        {can("customers.payments.create") ? (
+          <Link
+            href="/customers/credits/pay"
+            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-500 active:scale-95"
+          >
+            Record Credit Payment
+          </Link>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">

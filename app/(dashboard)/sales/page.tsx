@@ -19,6 +19,7 @@ export default function SalesListPage() {
   const user = session?.user as any;
   const permissionKeys = new Set<string>(user?.permissions || []);
   const canDeleteSale = user?.role === "Super Admin" || permissionKeys.has("sales.delete");
+  const canCreateSale = user?.role === "Super Admin" || permissionKeys.has("sales.create");
   const [search, setSearch] = useState("");
   const [locationId, setLocationId] = useState(currentLocation?.id || "");
   const [dateFrom, setDateFrom] = useState("");
@@ -104,14 +105,16 @@ export default function SalesListPage() {
             {currentLocation ? `${currentLocation.name} Sales Fulfillment` : "Global Revenue Transaction Management"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link 
-            href="/sales/create"
-            className="page-action gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black shadow-lg shadow-indigo-900/20 hover:bg-indigo-500 active:scale-95 transition-all uppercase tracking-widest cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> New Sale
-          </Link>
-        </div>
+        {canCreateSale ? (
+          <div className="flex items-center gap-3">
+            <Link 
+              href="/sales/create"
+              className="page-action gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black shadow-lg shadow-indigo-900/20 hover:bg-indigo-500 active:scale-95 transition-all uppercase tracking-widest cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> New Sale
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       <div className="page-stats xl:grid-cols-6">

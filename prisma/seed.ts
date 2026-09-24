@@ -1,15 +1,20 @@
 import "dotenv/config";
-import { PrismaClient } from "../lib/generated/prisma/client";
+import { Prisma, PrismaClient } from "../lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { PERMISSION_CATALOG } from "../lib/permission-catalog";
-import { BUSINESSES, retiredLocationIds, RETIRED_BUSINESS_IDS } from "../lib/businesses";
+import { BUSINESSES, PHARMACY_UNITS, retiredLocationIds, RETIRED_BUSINESS_IDS } from "../lib/businesses";
 import { bootstrapBusinessDefaults } from "../lib/actions/business-defaults";
 import { seedBusinessCatalogs } from "./catalog-seed";
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 3,
+  keepAlive: true,
+  connectionTimeoutMillis: 30000,
 });
+const adapter = new PrismaPg(pool);
 
 const prisma = new PrismaClient({
   adapter,
@@ -111,12 +116,16 @@ async function syncPermissionsAndRoles() {
     })),
     skipDuplicates: true,
   });
-  for (const permission of PERMISSION_CATALOG) {
-    await prisma.permission.updateMany({
-      where: { key: permission.key },
-      data: { label: permission.label, module: permission.module },
-    });
-  }
+  await prisma.$executeRaw`
+    UPDATE "Permission" AS permission
+    SET "label" = incoming.label, "module" = incoming.module
+    FROM (VALUES ${Prisma.join(
+      PERMISSION_CATALOG.map(
+        (permission) => Prisma.sql`(${permission.key}, ${permission.label}, ${permission.module})`,
+      ),
+    )}) AS incoming(key, label, module)
+    WHERE permission."key" = incoming.key
+  `;
 
   const catalogKeys = PERMISSION_CATALOG.map((permission) => permission.key);
   const obsoletePermissions = await prisma.permission.findMany({
@@ -266,7 +275,10 @@ async function seedSampleData() {
         location: business.location,
       },
     });
-    await bootstrapBusinessDefaults(prisma, location);
+    const unitCount = await prisma.unit.count({ where: { locationId: location.id } });
+    if (unitCount < PHARMACY_UNITS.length) {
+      await bootstrapBusinessDefaults(prisma, location);
+    }
     businesses.push(location);
   }
 
@@ -286,11 +298,22 @@ async function seedSampleData() {
       firstName: "Admin",
       lastName: "User",
       username: "admin",
-      password: "2343",
+      password: "1234",
       phone: "",
       roleName: SUPER_ADMIN_ROLE,
       locationId: businesses[0].id,
       assignedLocationIds: allBusinessIds,
+    },
+    {
+      id: "seed-user-sales",
+      firstName: "Sales",
+      lastName: "Desk",
+      username: "sales",
+      password: "1234",
+      phone: "",
+      roleName: SALES_ROLE,
+      locationId: businesses[0].id,
+      assignedLocationIds: businesses[0].id,
     },
     ...businesses.map((business, index) => ({
       id: `seed-user-sales-${index + 1}`,
@@ -343,10 +366,6 @@ async function seedSampleData() {
     });
   }
 
-  await prisma.user.updateMany({
-    where: { username: "sales" },
-    data: { isActive: false },
-  });
 }
 
 async function main() {
@@ -354,7 +373,8 @@ async function main() {
   await seedSampleData();
   console.log("Seed completed.");
   console.log("Logins:");
-  console.log("  admin / 2343  (all pharmacies)");
+  console.log("  admin / 1234  (all pharmacies)");
+  console.log("  sales / 1234  (Bole Pharmacy)");
   for (const [index, business] of BUSINESSES.entries()) {
     console.log(`  sales${index + 1} / 1234 (${business.name})`);
   }
@@ -397,11 +417,28 @@ async function retireFashionBusinesses(replacementId: string) {
   }
 }
 
-main()
+async function run() {
+  const attempts = 4;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await main();
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const retryable = /terminated|ECONNRESET|ECONNREFUSED|timeout|closed/i.test(message);
+      if (!retryable || attempt === attempts) throw error;
+      console.log(`Database connection dropped. Retrying seed (${attempt + 1}/${attempts})...`);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+  }
+}
+
+run()
   .catch((error) => {
     console.error(error);
     process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });

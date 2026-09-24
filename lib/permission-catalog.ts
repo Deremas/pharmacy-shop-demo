@@ -99,6 +99,14 @@ export function formatPermissionLabel(permission?: { key?: string; label?: strin
   return `${titleCase(action)} ${titleCase(resource)}`.trim();
 }
 
+export function permissionsInCatalogOrder<T extends { key: string }>(permissions: T[]) {
+  const byKey = new Map(permissions.map((permission) => [permission.key, permission]));
+  return PERMISSION_CATALOG.flatMap((entry) => {
+    const permission = byKey.get(entry.key);
+    return permission ? [permission] : [];
+  });
+}
+
 export function groupPermissions<T extends { module: string }>(permissions: T[]) {
   return permissions.reduce<Record<string, T[]>>((groups, permission) => {
     groups[permission.module] = groups[permission.module] || [];

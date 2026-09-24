@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Truck, ArrowDownRight, History, Clock, Landmark } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 
 export default function SupplierDebts() {
   const { suppliers, purchases, supplierPayments } = useAppData();
+  const can = useCan();
   const [filterType, setFilterType] = useState<"ALL" | "OUTSTANDING">("ALL");
 
   const totalPayable = useMemo(() => suppliers.reduce((sum, s) => sum + (s.debt || 0), 0), [suppliers]);
@@ -92,10 +94,12 @@ export default function SupplierDebts() {
           </h1>
           <p className="mt-1 text-slate-500">Manage accounts payable and payment schedules.</p>
         </div>
-        <Link href="/suppliers/debts/pay" className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-500 active:scale-95">
-          <Landmark className="h-4 w-4" />
-          Record Debt Payment
-        </Link>
+        {can("suppliers.payments.create") ? (
+          <Link href="/suppliers/debts/pay" className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-500 active:scale-95">
+            <Landmark className="h-4 w-4" />
+            Record Debt Payment
+          </Link>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">

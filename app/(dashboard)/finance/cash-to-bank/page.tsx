@@ -14,10 +14,12 @@ import { NumericInput } from "@/components/numeric-input";
 import { formatCurrency } from "@/lib/utils";
 import { isTenantBusiness, locationsForCurrentBusiness } from "@/lib/businesses";
 import { calculateLocationCashBalance, useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { updateDraftField, useBusinessDraft } from "@/lib/client/useBusinessDraft";
 
 export default function CashToBankPage() {
   const state = useAppData();
+  const can = useCan();
   const toast = useToast();
   const bankAccounts = state.bankAccounts.filter((account) => account.accountType === "BANK");
   const cashLocations = locationsForCurrentBusiness(state.currentLocation, state.locations).filter(isTenantBusiness);
@@ -77,14 +79,16 @@ export default function CashToBankPage() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-indigo-500/30 transition hover:bg-indigo-500 active:scale-95"
-        >
-          <Save className="h-4 w-4" />
-          Save Deposit
-        </button>
+        {can("finance.cash_to_bank.create") ? (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-indigo-500/30 transition hover:bg-indigo-500 active:scale-95"
+          >
+            <Save className="h-4 w-4" />
+            Save Deposit
+          </button>
+        ) : null}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">

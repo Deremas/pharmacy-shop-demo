@@ -22,7 +22,7 @@ import { paginateRows } from "@/lib/sales-utils";
 export default function DamagePage() {
   const { data: session } = useSession();
   const user = session?.user as any;
-  const canRecord = user?.role === "Super Admin";
+  const canRecord = user?.role === "Super Admin" || user?.permissions?.includes("inventory.stock.adjust");
 
   const {
     products = [],

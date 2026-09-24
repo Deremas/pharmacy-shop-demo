@@ -4,11 +4,13 @@ import React from "react";
 import { AlertTriangle, ChevronDown, Edit, Package, Plus, Search, Trash } from "lucide-react";
 import Link from "next/link";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
 import { formatItemChoiceLabel, formatUnitLabel, itemVariant } from "@/lib/item-display";
 import { cn, formatCurrency } from "@/lib/utils";
 
 export default function ItemList() {
   const { products = [], items = [], currentLocation, deleteItem } = useAppData();
+  const can = useCan();
   const [search, setSearch] = React.useState("");
   const [category, setCategory] = React.useState("");
   const [itemToDelete, setItemToDelete] = React.useState<string | null>(null);
@@ -58,10 +60,12 @@ export default function ItemList() {
             Product catalog with {currentLocation?.name || "active location"} stock context
           </p>
         </div>
-        <Link href="/items/create" className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-500 active:scale-95">
-          <Plus className="h-5 w-5" />
-          Create New Item
-        </Link>
+        {can("inventory.items.create") ? (
+          <Link href="/items/create" className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-500 active:scale-95">
+            <Plus className="h-5 w-5" />
+            Create New Item
+          </Link>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -135,16 +139,20 @@ export default function ItemList() {
                     <td className="px-6 py-5 font-mono text-sm font-black text-slate-900 dark:text-zinc-100">{formatCurrency(item.price || 0)} / {formatUnitLabel(item)}</td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Link
-                          href={`/items/create?id=${item.id}`}
-                          aria-label={`Edit ${item.name}`}
-                          className="rounded-xl p-2 text-slate-600 transition-all hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-zinc-800"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Link>
-                        <button onClick={() => setItemToDelete(item.id)} className="rounded-xl p-2 text-slate-600 transition-all hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/20">
-                          <Trash className="h-4 w-4" />
-                        </button>
+                        {can("inventory.items.update") ? (
+                          <Link
+                            href={`/items/create?id=${item.id}`}
+                            aria-label={`Edit ${item.name}`}
+                            className="rounded-xl p-2 text-slate-600 transition-all hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-zinc-800"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                        ) : null}
+                        {can("inventory.items.delete") ? (
+                          <button onClick={() => setItemToDelete(item.id)} className="rounded-xl p-2 text-slate-600 transition-all hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/20">
+                            <Trash className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
