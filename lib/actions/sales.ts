@@ -6,7 +6,7 @@ import { asMoney, moneyNumber } from "@/lib/money";
 import { assertLocationAccess, createReference, type WriteActor } from "@/lib/actions/common";
 import { runSerializableTransaction } from "@/lib/actions/transaction";
 import { lowStockCrossings, stockTotalsForItems } from "@/lib/stock";
-import { notifyBusiness, formatEtb, formatItemListLines, voidNotifyLowStock, tgTitle, escapeHtml } from "@/lib/telegram";
+import { notifyBusiness, formatEtb, formatItemListLines, voidNotifyLowStock, voidNotifySaleDelete, tgTitle, escapeHtml } from "@/lib/telegram";
 import { formatTelegramItemLabel } from "@/lib/item-display";
 import { formatPaymentSummary, formatBankAccountLabel, salePaymentRows } from "@/lib/payment-display";
 import { createSaleSchema, type CreateSaleInput } from "@/lib/validation/sale";
@@ -587,7 +587,7 @@ export async function deleteSale(saleId: string, actor: WriteActor) {
   const id = String(saleId || "").trim();
   if (!id) throw new Error("Sale id is required.");
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const sale = await tx.sale.findUnique({
       where: { id },
       include: {
@@ -769,9 +769,26 @@ export async function deleteSale(saleId: string, actor: WriteActor) {
       },
     });
 
+    const catalog = await tx.item.findMany({
+      where: { id: { in: sale.items.map((line) => line.itemId) } },
+      select: { id: true, name: true, code: true, locationId: true },
+    });
+    const byId = new Map(catalog.map((item) => [item.id, item]));
     return {
       id: sale.id,
+      locationId: sale.locationId,
       voucherCode: sale.voucherCode,
+      totalAmount: moneyNumber(sale.totalAmount),
+      telegramItems: sale.items.map((line) => {
+        const item = byId.get(line.itemId);
+        return {
+          name: formatTelegramItemLabel(
+            { name: item?.name, code: item?.code || undefined, locationId: item?.locationId || sale.locationId },
+            sale.locationId,
+          ),
+          qty: line.quantity,
+        };
+      }),
       restoredQuantity: sale.items.reduce((sum, line) => sum + line.quantity, 0),
       restoredLines: sale.items.length,
       removedBankTransactions: salePayments.length,
@@ -780,4 +797,13 @@ export async function deleteSale(saleId: string, actor: WriteActor) {
       creditCleared: moneyNumber(sale.creditAmount),
     };
   });
+
+  voidNotifySaleDelete({
+    locationId: result.locationId,
+    voucherCode: result.voucherCode,
+    totalAmount: result.totalAmount,
+    items: result.telegramItems,
+  });
+  const { locationId: _locationId, totalAmount: _totalAmount, telegramItems: _telegramItems, ...response } = result;
+  return response;
 }

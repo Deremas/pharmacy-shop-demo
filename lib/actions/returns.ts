@@ -3,6 +3,27 @@ import { runSerializableTransaction } from "@/lib/actions/transaction";
 import { isExternalAccount } from "@/lib/finance/accounts";
 import { asMoney, moneyNumber } from "@/lib/money";
 import { assertWholeQuantity } from "@/lib/units";
+import { formatTelegramItemLabel } from "@/lib/item-display";
+import { voidNotifyPurchaseReturn, voidNotifySaleReturn, voidNotifySaleVoid } from "@/lib/telegram";
+import { formatBankAccountLabel } from "@/lib/payment-display";
+
+async function telegramItemLines(tx: any, locationId: string, rows: Array<{ itemId: string; qty: number }>) {
+  const catalog = await tx.item.findMany({
+    where: { id: { in: [...new Set(rows.map((row) => row.itemId))] } },
+    select: { id: true, name: true, code: true, locationId: true },
+  }) as Array<{ id: string; name: string; code: string | null; locationId: string }>;
+  const byId = new Map(catalog.map((item) => [item.id, item]));
+  return rows.map((row) => {
+    const item = byId.get(row.itemId);
+    return {
+      name: formatTelegramItemLabel(
+        { name: item?.name, code: item?.code || undefined, locationId: item?.locationId || locationId },
+        locationId,
+      ),
+      qty: row.qty,
+    };
+  });
+}
 
 async function restoreBatchQuantity(tx: any, batchId: string, quantity: number) {
   const batch = await tx.inventoryBatch.findUnique({ where: { id: batchId } });
@@ -55,7 +76,7 @@ export async function voidSale(saleId: string, actor: WriteActor) {
   const id = String(saleId || "").trim();
   if (!id) throw new Error("Sale id is required.");
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const sale = await tx.sale.findUnique({
       where: { id },
       include: {
@@ -155,8 +176,27 @@ export async function voidSale(saleId: string, actor: WriteActor) {
         oldData: { voucherCode: sale.voucherCode, totalAmount: moneyNumber(sale.totalAmount) },
       },
     });
-    return { id: sale.id, voucherCode: sale.voucherCode };
+    const items = await telegramItemLines(
+      tx,
+      sale.locationId,
+      sale.items.map((line) => ({ itemId: line.itemId, qty: line.quantity })),
+    );
+    return {
+      id: sale.id,
+      voucherCode: sale.voucherCode,
+      locationId: sale.locationId,
+      totalAmount: moneyNumber(sale.totalAmount),
+      items,
+    };
   });
+
+  voidNotifySaleVoid({
+    locationId: result.locationId,
+    voucherCode: result.voucherCode,
+    totalAmount: result.totalAmount,
+    items: result.items,
+  });
+  return { id: result.id, voucherCode: result.voucherCode };
 }
 
 export async function createSaleReturn(input: {
@@ -174,7 +214,7 @@ export async function createSaleReturn(input: {
   if (reason.length < 3) throw new Error("A return reason is required.");
   if (!["CASH", "BANK", "CREDIT"].includes(refundMethod)) throw new Error("Choose a cash, bank, or credit refund.");
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const sale = await tx.sale.findUnique({
       where: { id: saleId },
       include: {
@@ -292,8 +332,43 @@ export async function createSaleReturn(input: {
       data: { status: fullyReturned ? "RETURNED" : "PARTIAL_RETURN" },
     });
 
-    return { id: saleReturn.id, returnNumber: saleReturn.returnNumber, totalAmount: moneyNumber(totalAmount) };
+    let bankAccountName: string | null = null;
+    if (refundMethod === "BANK" && input.bankAccountId) {
+      const bank = await tx.bankAccount.findFirst({
+        where: { id: input.bankAccountId },
+        select: { displayName: true, bankName: true },
+      });
+      bankAccountName = formatBankAccountLabel(bank) || null;
+    }
+    const items = await telegramItemLines(
+      tx,
+      sale.locationId,
+      prepared.map((line) => ({ itemId: line.saleItem.itemId, qty: line.quantity })),
+    );
+    return {
+      id: saleReturn.id,
+      returnNumber: saleReturn.returnNumber,
+      totalAmount: moneyNumber(totalAmount),
+      locationId: sale.locationId,
+      voucherCode: sale.voucherCode,
+      refundMethod,
+      bankAccountName,
+      reason,
+      items,
+    };
   });
+
+  voidNotifySaleReturn({
+    locationId: result.locationId,
+    returnNumber: result.returnNumber,
+    voucherCode: result.voucherCode,
+    totalAmount: result.totalAmount,
+    refundMethod: result.refundMethod,
+    bankAccountName: result.bankAccountName,
+    reason: result.reason,
+    items: result.items,
+  });
+  return { id: result.id, returnNumber: result.returnNumber, totalAmount: result.totalAmount };
 }
 
 export async function createPurchaseReturn(input: {
@@ -311,7 +386,7 @@ export async function createPurchaseReturn(input: {
   if (reason.length < 3) throw new Error("A return reason is required.");
   if (!["CASH", "BANK", "CREDIT"].includes(refundMethod)) throw new Error("Choose cash, bank, or supplier credit.");
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const purchase = await tx.purchase.findUnique({
       where: { id: purchaseId },
       include: { items: true },
@@ -418,6 +493,41 @@ export async function createPurchaseReturn(input: {
       });
     }
 
-    return { id: purchaseReturn.id, returnNumber: purchaseReturn.returnNumber, totalAmount: moneyNumber(totalAmount) };
+    let bankAccountName: string | null = null;
+    if (refundMethod === "BANK" && input.bankAccountId) {
+      const bank = await tx.bankAccount.findFirst({
+        where: { id: input.bankAccountId },
+        select: { displayName: true, bankName: true },
+      });
+      bankAccountName = formatBankAccountLabel(bank) || null;
+    }
+    const items = await telegramItemLines(
+      tx,
+      purchase.locationId,
+      prepared.map((line) => ({ itemId: line.purchaseItem.itemId, qty: line.quantity })),
+    );
+    return {
+      id: purchaseReturn.id,
+      returnNumber: purchaseReturn.returnNumber,
+      totalAmount: moneyNumber(totalAmount),
+      locationId: purchase.locationId,
+      invoiceNo: purchase.invoiceNo || purchase.id,
+      refundMethod,
+      bankAccountName,
+      reason,
+      items,
+    };
   });
+
+  voidNotifyPurchaseReturn({
+    locationId: result.locationId,
+    returnNumber: result.returnNumber,
+    invoiceNo: result.invoiceNo,
+    totalAmount: result.totalAmount,
+    refundMethod: result.refundMethod,
+    bankAccountName: result.bankAccountName,
+    reason: result.reason,
+    items: result.items,
+  });
+  return { id: result.id, returnNumber: result.returnNumber, totalAmount: result.totalAmount };
 }

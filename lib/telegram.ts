@@ -444,6 +444,178 @@ export function voidNotifyCreditPayment(input: {
   voidNotifyBusiness(input.locationId, lines);
 }
 
+export function voidNotifyExpense(input: {
+  locationId: string;
+  category: string;
+  description?: string | null;
+  amount: number;
+  paymentMethod: string;
+  bankAccountName?: string | null;
+}) {
+  const method = formatMethodWithBank(input.paymentMethod, input.bankAccountName);
+  const lines = [
+    tgTitle("💸", "EXPENSE"),
+    escapeHtml(input.category),
+    `${formatEtb(input.amount)} · ${escapeHtml(method)}`,
+  ];
+  const note = String(input.description || "").trim();
+  if (note && note !== input.category) lines.push(escapeHtml(note));
+  voidNotifyBusiness(input.locationId, lines);
+}
+
+export function voidNotifyCashDeposit(input: {
+  locationId: string;
+  amount: number;
+  accountName: string;
+  note?: string | null;
+}) {
+  const lines = [
+    tgTitle("🏦", "CASH TO BANK"),
+    formatEtb(input.amount),
+    `To: ${escapeHtml(input.accountName)}`,
+  ];
+  const note = String(input.note || "").trim();
+  if (note) lines.push(escapeHtml(note));
+  voidNotifyBusiness(input.locationId, lines);
+}
+
+export function voidNotifySupplierPayment(input: {
+  locationId: string;
+  supplierName: string;
+  amount: number;
+  paymentMethod: string;
+  remainingDebt: number;
+  bankAccountName?: string | null;
+  purchaseLabel?: string | null;
+}) {
+  const method = formatMethodWithBank(input.paymentMethod, input.bankAccountName);
+  const lines = [
+    tgTitle("💵", "SUPPLIER PAY"),
+    escapeHtml(input.supplierName),
+    `Paid: ${formatEtb(input.amount)} (${escapeHtml(method)})`,
+    `Remaining debt: ${formatEtb(input.remainingDebt)}`,
+  ];
+  if (input.purchaseLabel) lines.push(`Purchase: ${escapeHtml(input.purchaseLabel)}`);
+  voidNotifyBusiness(input.locationId, lines);
+}
+
+export function voidNotifySaleVoid(input: {
+  locationId: string;
+  voucherCode: string;
+  totalAmount: number;
+  items: TelegramQtyLine[];
+}) {
+  voidNotifyBusiness(input.locationId, [
+    tgTitle("🚫", "SALE VOID"),
+    escapeHtml(input.voucherCode),
+    `Total: ${formatEtb(input.totalAmount)}`,
+    "Stock restored",
+    `Items: ${input.items.length}`,
+    ...formatItemListLines(input.items),
+  ]);
+}
+
+export function voidNotifySaleDelete(input: {
+  locationId: string;
+  voucherCode: string;
+  totalAmount: number;
+  items: TelegramQtyLine[];
+}) {
+  voidNotifyBusiness(input.locationId, [
+    tgTitle("🗑", "SALE DELETE"),
+    escapeHtml(input.voucherCode),
+    `Total: ${formatEtb(input.totalAmount)}`,
+    "Stock and payments restored",
+    `Items: ${input.items.length}`,
+    ...formatItemListLines(input.items),
+  ]);
+}
+
+export function voidNotifySaleReturn(input: {
+  locationId: string;
+  returnNumber: string;
+  voucherCode: string;
+  totalAmount: number;
+  refundMethod: string;
+  bankAccountName?: string | null;
+  reason: string;
+  items: TelegramQtyLine[];
+}) {
+  const method = formatMethodWithBank(input.refundMethod, input.bankAccountName);
+  voidNotifyBusiness(input.locationId, [
+    tgTitle("↩️", "SALE RETURN"),
+    escapeHtml(input.returnNumber),
+    `Sale: ${escapeHtml(input.voucherCode)}`,
+    `Refund: ${formatEtb(input.totalAmount)} · ${escapeHtml(method)}`,
+    `Reason: ${escapeHtml(input.reason)}`,
+    `Items: ${input.items.length}`,
+    ...formatItemListLines(input.items),
+  ]);
+}
+
+export function voidNotifyPurchaseDelete(input: {
+  locationId: string;
+  invoiceNo: string;
+  totalAmount: number;
+  items: TelegramQtyLine[];
+}) {
+  voidNotifyBusiness(input.locationId, [
+    tgTitle("🗑", "PURCHASE DELETE"),
+    escapeHtml(input.invoiceNo),
+    `Total: ${formatEtb(input.totalAmount)}`,
+    "Stock and payments reversed",
+    `Items: ${input.items.length}`,
+    ...formatItemListLines(input.items),
+  ]);
+}
+
+export function voidNotifyPurchaseReturn(input: {
+  locationId: string;
+  returnNumber: string;
+  invoiceNo: string;
+  totalAmount: number;
+  refundMethod: string;
+  bankAccountName?: string | null;
+  reason: string;
+  items: TelegramQtyLine[];
+}) {
+  const method = formatMethodWithBank(input.refundMethod, input.bankAccountName);
+  voidNotifyBusiness(input.locationId, [
+    tgTitle("↩️", "PURCHASE RETURN"),
+    escapeHtml(input.returnNumber),
+    `Purchase: ${escapeHtml(input.invoiceNo)}`,
+    `Value: ${formatEtb(input.totalAmount)} · ${escapeHtml(method)}`,
+    `Reason: ${escapeHtml(input.reason)}`,
+    `Items: ${input.items.length}`,
+    ...formatItemListLines(input.items),
+  ]);
+}
+
+export function voidNotifyDisposal(input: {
+  locationId: string;
+  itemName: string;
+  itemCode?: string | null;
+  batchCode?: string | null;
+  quantity: number;
+  beforeQuantity: number;
+  afterQuantity: number;
+  loss: number;
+  reason: string;
+}) {
+  const label = formatTelegramItemLabel(
+    { name: input.itemName, code: input.itemCode || undefined, locationId: input.locationId },
+    input.locationId,
+  );
+  voidNotifyBusiness(input.locationId, [
+    tgTitle("🗑", "DISPOSAL"),
+    escapeHtml(label),
+    input.batchCode ? `Batch: ${escapeHtml(input.batchCode)}` : "",
+    `Qty: ${formatQty(input.beforeQuantity)} → ${formatQty(input.afterQuantity)} (−${formatQty(input.quantity)})`,
+    `Loss: ${formatEtb(input.loss)}`,
+    `Reason: ${escapeHtml(input.reason)}`,
+  ].filter(Boolean));
+}
+
 function sectionWithItems(emoji: string, label: string, items: TelegramQtyLine[]) {
   const list = formatItemListLines(items);
   const title = tgTitle(emoji, label);

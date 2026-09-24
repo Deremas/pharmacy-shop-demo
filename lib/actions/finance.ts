@@ -4,7 +4,7 @@ import { runSerializableTransaction } from "@/lib/actions/transaction";
 import { settleCredit, getCustomerOutstandingCredit } from "@/lib/finance/credit";
 import { asMoney, moneyNumber } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { voidNotifyCreditPayment } from "@/lib/telegram";
+import { voidNotifyCashDeposit, voidNotifyCreditPayment, voidNotifyExpense, voidNotifySupplierPayment } from "@/lib/telegram";
 import { formatBankAccountLabel } from "@/lib/payment-display";
 import { cashTransferSchema, customerPaymentSchema, expenseCategorySchema, expenseSchema, supplierPaymentSchema } from "@/lib/validation/finance";
 
@@ -29,17 +29,18 @@ export async function createExpense(input: unknown, actor: WriteActor) {
   const data = parsed.data;
   assertLocationAccess(actor, data.locationId);
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const location = await tx.location.findFirst({ where: { id: data.locationId, isActive: true }, select: { id: true } });
     if (!location) throw new Error("The selected expense location is unavailable.");
     const amount = asMoney(data.amount);
     const description = data.description || data.category;
 
     let bankAccountId: string | null = null;
+    let bankAccountName: string | null = null;
     if (data.paymentMethod === "BANK") {
       const account = await tx.bankAccount.findFirst({
         where: { id: data.bankAccountId || "", isActive: true, accountType: { in: ["BANK", "MOBILE"] }, locationId: data.locationId },
-        select: { id: true, currentBalance: true },
+        select: { id: true, currentBalance: true, displayName: true, bankName: true },
       });
       if (!account) throw new Error("Select a valid bank account from this business.");
       if (account.currentBalance.lt(amount)) {
@@ -51,6 +52,7 @@ export async function createExpense(input: unknown, actor: WriteActor) {
       });
       if (debited.count !== 1) throw new Error("Bank balance changed while recording the expense. Please retry.");
       bankAccountId = account.id;
+      bankAccountName = formatBankAccountLabel(account) || null;
     }
 
     await ensureExpenseCategory(tx, data.locationId, data.category);
@@ -95,8 +97,26 @@ export async function createExpense(input: unknown, actor: WriteActor) {
         newData: { category: data.category, amount: moneyNumber(amount), paymentMethod: data.paymentMethod, bankAccountId },
       },
     });
-    return { id: expense.id };
+    return {
+      id: expense.id,
+      locationId: data.locationId,
+      category: data.category,
+      description,
+      amount: moneyNumber(amount),
+      paymentMethod: data.paymentMethod,
+      bankAccountName,
+    };
   });
+
+  voidNotifyExpense({
+    locationId: result.locationId,
+    category: result.category,
+    description: result.description,
+    amount: result.amount,
+    paymentMethod: result.paymentMethod,
+    bankAccountName: result.bankAccountName,
+  });
+  return { id: result.id };
 }
 
 export async function createCashTransfer(input: unknown, actor: WriteActor) {
@@ -105,11 +125,14 @@ export async function createCashTransfer(input: unknown, actor: WriteActor) {
   const data = parsed.data;
   assertLocationAccess(actor, data.locationId);
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const [location, cashAccount, destination] = await Promise.all([
       tx.location.findFirst({ where: { id: data.locationId, isActive: true }, select: { id: true } }),
       tx.bankAccount.findFirst({ where: { accountType: "CASH", isActive: true, locationId: data.locationId }, select: { id: true } }),
-      tx.bankAccount.findFirst({ where: { id: data.bankAccountId, accountType: { in: ["BANK", "MOBILE"] }, isActive: true, locationId: data.locationId }, select: { id: true } }),
+      tx.bankAccount.findFirst({
+        where: { id: data.bankAccountId, accountType: { in: ["BANK", "MOBILE"] }, isActive: true, locationId: data.locationId },
+        select: { id: true, displayName: true, bankName: true, accountType: true },
+      }),
     ]);
     if (!location) throw new Error("The selected transfer location is unavailable.");
     if (!cashAccount) throw new Error("The active cash account is unavailable.");
@@ -165,8 +188,24 @@ export async function createCashTransfer(input: unknown, actor: WriteActor) {
         newData: { fromAccountId: cashAccount.id, toAccountId: destination.id, amount: moneyNumber(amount), referenceNo: data.referenceNo || null },
       },
     });
-    return { id: transaction.id };
+    const accountName = formatBankAccountLabel(destination) || destination.displayName;
+    const destinationLabel = destination.accountType === "MOBILE" ? `Mobile money · ${accountName}` : accountName;
+    return {
+      id: transaction.id,
+      locationId: data.locationId,
+      amount: moneyNumber(amount),
+      accountName: destinationLabel,
+      note: data.note || null,
+    };
   });
+
+  voidNotifyCashDeposit({
+    locationId: result.locationId,
+    amount: result.amount,
+    accountName: result.accountName,
+    note: result.note,
+  });
+  return { id: result.id };
 }
 
 export async function createSupplierPayment(input: unknown, actor: WriteActor) {
@@ -175,7 +214,7 @@ export async function createSupplierPayment(input: unknown, actor: WriteActor) {
   const data = parsed.data;
   assertLocationAccess(actor, data.locationId);
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const purchaseId = String(data.purchaseId || "").trim() || null;
     const [location, supplier, purchase, purchaseDebt, priorPayments] = await Promise.all([
       tx.location.findFirst({ where: { id: data.locationId, isActive: true }, select: { id: true } }),
@@ -183,7 +222,7 @@ export async function createSupplierPayment(input: unknown, actor: WriteActor) {
       purchaseId
         ? tx.purchase.findFirst({
             where: { id: purchaseId, supplierId: data.supplierId, locationId: data.locationId },
-            select: { id: true },
+            select: { id: true, invoiceNo: true },
           })
         : Promise.resolve(null),
       tx.purchase.aggregate({ where: { supplierId: data.supplierId }, _sum: { debtAmount: true } }),
@@ -199,10 +238,11 @@ export async function createSupplierPayment(input: unknown, actor: WriteActor) {
     if (amount.gt(outstanding)) throw new Error(`Payment cannot exceed the outstanding debt of ETB ${moneyNumber(outstanding).toLocaleString()}.`);
 
     let bankAccountId: string | null = null;
+    let bankAccountName: string | null = null;
     if (data.method === "BANK") {
       const account = await tx.bankAccount.findFirst({
         where: { id: data.bankAccountId || "", accountType: { in: ["BANK", "MOBILE"] }, isActive: true, locationId: data.locationId },
-        select: { id: true, currentBalance: true },
+        select: { id: true, currentBalance: true, displayName: true, bankName: true },
       });
       if (!account) throw new Error("Select a valid bank account from this business.");
       if (account.currentBalance.lt(amount)) throw new Error(`Insufficient bank balance. Available: ETB ${moneyNumber(account.currentBalance).toLocaleString()}.`);
@@ -212,6 +252,7 @@ export async function createSupplierPayment(input: unknown, actor: WriteActor) {
       });
       if (debited.count !== 1) throw new Error("Bank balance changed while recording the payment. Please retry.");
       bankAccountId = account.id;
+      bankAccountName = formatBankAccountLabel(account) || null;
     }
 
     const payment = await tx.supplierPayment.create({
@@ -260,8 +301,28 @@ export async function createSupplierPayment(input: unknown, actor: WriteActor) {
         },
       },
     });
-    return { id: payment.id };
+    return {
+      id: payment.id,
+      locationId: data.locationId,
+      supplierName: supplier.name,
+      amount: moneyNumber(amount),
+      paymentMethod: data.method,
+      remainingDebt: moneyNumber(outstanding.minus(amount)),
+      bankAccountName,
+      purchaseLabel: purchase?.invoiceNo || null,
+    };
   });
+
+  voidNotifySupplierPayment({
+    locationId: result.locationId,
+    supplierName: result.supplierName,
+    amount: result.amount,
+    paymentMethod: result.paymentMethod,
+    remainingDebt: result.remainingDebt,
+    bankAccountName: result.bankAccountName,
+    purchaseLabel: result.purchaseLabel,
+  });
+  return { id: result.id };
 }
 
 export async function createCustomerPayment(input: unknown, actor: WriteActor) {

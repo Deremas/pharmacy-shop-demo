@@ -3,6 +3,7 @@ import { runSerializableTransaction } from "@/lib/actions/transaction";
 import { asMoney, moneyNumber } from "@/lib/money";
 import { tenantBusinessId } from "@/lib/businesses";
 import { assertWholeQuantity } from "@/lib/units";
+import { voidNotifyDisposal } from "@/lib/telegram";
 
 export async function disposeBatch(input: {
   inventoryBatchId?: string;
@@ -17,10 +18,10 @@ export async function disposeBatch(input: {
   }
   if (reason.length < 3) throw new Error("A disposal reason is required.");
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const batch = await tx.inventoryBatch.findUnique({
       where: { id: input.inventoryBatchId },
-      include: { item: { select: { id: true, name: true, locationId: true, unit: { select: { name: true } } } } },
+      include: { item: { select: { id: true, name: true, code: true, locationId: true, unit: { select: { name: true } } } } },
     });
     if (!batch) throw new Error("Batch was not found.");
     const businessId = tenantBusinessId(batch.locationId);
@@ -88,6 +89,30 @@ export async function disposeBatch(input: {
         newData: { quantity, reason, batchCode: batch.batchCode, loss: moneyNumber(unitCost.mul(quantity)) },
       },
     });
-    return { id: disposal.id };
+    return {
+      id: disposal.id,
+      locationId: businessId,
+      itemName: batch.item.name,
+      itemCode: batch.item.code,
+      batchCode: batch.batchCode,
+      quantity,
+      beforeQuantity: Number(batch.remainingQuantity),
+      afterQuantity: Number(batch.remainingQuantity) - quantity,
+      loss: moneyNumber(unitCost.mul(quantity)),
+      reason,
+    };
   });
+
+  voidNotifyDisposal({
+    locationId: result.locationId,
+    itemName: result.itemName,
+    itemCode: result.itemCode,
+    batchCode: result.batchCode,
+    quantity: result.quantity,
+    beforeQuantity: result.beforeQuantity,
+    afterQuantity: result.afterQuantity,
+    loss: result.loss,
+    reason: result.reason,
+  });
+  return { id: result.id };
 }

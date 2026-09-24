@@ -2,7 +2,7 @@ import { assertLocationAccess, createReference, type WriteActor } from "@/lib/ac
 import { runSerializableTransaction } from "@/lib/actions/transaction";
 import { stockLocationIdsFor, tenantBusinessId } from "@/lib/businesses";
 import { asMoney, moneyNumber } from "@/lib/money";
-import { voidNotifyPurchase } from "@/lib/telegram";
+import { voidNotifyPurchase, voidNotifyPurchaseDelete } from "@/lib/telegram";
 import { formatTelegramItemLabel } from "@/lib/item-display";
 import { formatBankAccountLabel } from "@/lib/payment-display";
 import { createPurchaseSchema } from "@/lib/validation/purchase";
@@ -244,7 +244,7 @@ export async function deletePurchase(purchaseId: string, actor: WriteActor) {
   const id = String(purchaseId || "").trim();
   if (!id) throw new Error("Purchase id is required.");
 
-  return runSerializableTransaction(async (tx) => {
+  const result = await runSerializableTransaction(async (tx) => {
     const purchase = await tx.purchase.findUnique({
       where: { id },
       include: {
@@ -378,9 +378,26 @@ export async function deletePurchase(purchaseId: string, actor: WriteActor) {
       },
     });
 
+    const catalog = await tx.item.findMany({
+      where: { id: { in: purchase.items.map((line) => line.itemId) } },
+      select: { id: true, name: true, code: true, locationId: true },
+    });
+    const byId = new Map(catalog.map((item) => [item.id, item]));
     return {
       id: purchase.id,
+      locationId: purchase.locationId,
       invoiceNo: purchase.invoiceNo || purchase.id,
+      totalAmount: moneyNumber(purchase.totalAmount),
+      telegramItems: purchase.items.map((line) => {
+        const item = byId.get(line.itemId);
+        return {
+          name: formatTelegramItemLabel(
+            { name: item?.name, code: item?.code || undefined, locationId: item?.locationId || purchase.locationId },
+            purchase.locationId,
+          ),
+          qty: line.quantity,
+        };
+      }),
       removedBatches: batches.length,
       removedBankTransactions: bankPayments.length,
       removedSupplierPayments,
@@ -388,4 +405,13 @@ export async function deletePurchase(purchaseId: string, actor: WriteActor) {
       debtCleared: moneyNumber(purchase.debtAmount),
     };
   });
+
+  voidNotifyPurchaseDelete({
+    locationId: result.locationId,
+    invoiceNo: result.invoiceNo,
+    totalAmount: result.totalAmount,
+    items: result.telegramItems,
+  });
+  const { locationId: _locationId, totalAmount: _totalAmount, telegramItems: _telegramItems, ...response } = result;
+  return response;
 }
