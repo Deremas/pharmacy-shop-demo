@@ -1,0 +1,36 @@
+# =====================================================================
+# Juju Kids Operations - cPanel/CloudLinux Passenger (.htaccess)
+# =====================================================================
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+RewriteRule ^_next/ - [L]
+RewriteRule ^favicon\.ico$ - [L]
+</IfModule>
+
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/blueocik/apps/jujukids"
+PassengerBaseURI "/"
+PassengerNodejs "/home/blueocik/nodevenv/apps/jujukids/22/bin/node"
+PassengerAppType node
+PassengerStartupFile server.js
+PassengerAppLogFile "/home/blueocik/logs/passenger.log"
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
+SetEnv NODE_ENV production
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html)$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  </FilesMatch>
+</IfModule>
+
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION BEGIN
+<IfModule Litespeed>
+SetEnv DATABASE_URL "replace-with-your-database-url"
+SetEnv BETTER_AUTH_URL "https://replace-with-your-domain"
+SetEnv BETTER_AUTH_SECRET "replace-with-a-long-random-secret"
+SetEnv CRON_SECRET "replace-with-a-long-random-secret"
+</IfModule>
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION END

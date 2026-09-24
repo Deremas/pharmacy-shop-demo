@@ -1,0 +1,425 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  type      String // STORE, SHOP
+  location  String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  purchases          Purchase[]
+  sales              Sale[]
+  inventoryBatches   InventoryBatch[]
+  expenses           Expense[]
+  bankTransactions   BankTransaction[]
+  inventoryMovements InventoryMovement[]
+  transfersFrom      Transfer[]          @relation("SourceLocation")
+  transfersTo        Transfer[]          @relation("DestinationLocation")
+  supplierPayments   SupplierPayment[]
+  customerPayments   CustomerPayment[]
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  firstName           String
+  lastName            String?
+  phone               String?
+  username            String   @unique
+  passwordHash        String
+  role                String // ADMIN, SALES
+  roleId              String?
+  locationId          String
+  assignedLocationIds String?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  location    Location         @relation(fields: [locationId], references: [id])
+  roleRecord  Role?            @relation(fields: [roleId], references: [id])
+  permissions UserPermission[]
+  auditLogs   AuditLog[]
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  label     String
+  module    String
+  createdAt DateTime @default(now())
+
+  users UserPermission[]
+  roles RolePermission[]
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+}
+
+model UserPermission {
+  id           String   @id @default(cuid())
+  userId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items Item[]
+}
+
+model Unit {
+  id        String   @id @default(cuid())
+  name      String
+  shortName String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items Item[]
+}
+
+model Item {
+  id                  String   @id @default(cuid())
+  name                String
+  code                String?  @unique
+  barcode             String?  @unique
+  categoryId          String
+  unitId              String
+  description         String?
+  imageUrl            String?
+  lowStockAlert       Int      @default(10)
+  defaultBuyingPrice  Float    @default(0)
+  defaultSellingPrice Float    @default(0)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  category           Category            @relation(fields: [categoryId], references: [id])
+  unit               Unit                @relation(fields: [unitId], references: [id])
+  inventoryBatches   InventoryBatch[]
+  purchaseItems      PurchaseItem[]
+  saleItems          SaleItem[]
+  inventoryMovements InventoryMovement[]
+  transferItems      TransferItem[]
+}
+
+model InventoryBatch {
+  id                String    @id @default(cuid())
+  itemId            String
+  locationId        String
+  purchaseItemId    String?
+  quantityIn        Float
+  remainingQuantity Float
+  buyingPrice       Float
+  sellingPrice      Float
+  expireDate        DateTime?
+  batchCode         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  item      Item       @relation(fields: [itemId], references: [id])
+  location  Location   @relation(fields: [locationId], references: [id])
+  saleItems SaleItem[]
+}
+
+model InventoryMovement {
+  id               String   @id @default(cuid())
+  itemId           String
+  locationId       String
+  inventoryBatchId String?
+  type             String // PURCHASE, SALE, TRANSFER_IN, TRANSFER_OUT, ADJUSTMENT
+  quantity         Float
+  beforeQuantity   Float
+  afterQuantity    Float
+  referenceType    String?
+  referenceId      String?
+  note             String?
+  createdById      String?
+  createdAt        DateTime @default(now())
+
+  item     Item     @relation(fields: [itemId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  address   String?
+  note      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases        Purchase[]
+  supplierPayments SupplierPayment[]
+}
+
+model Purchase {
+  id            String   @id @default(cuid())
+  supplierId    String
+  locationId    String
+  invoiceNo     String?
+  purchaseDate  DateTime @default(now())
+  totalAmount   Float
+  paidAmount    Float
+  debtAmount    Float
+  paymentStatus String // PAID, PARTIAL, UNPAID
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  supplier         Supplier          @relation(fields: [supplierId], references: [id])
+  location         Location          @relation(fields: [locationId], references: [id])
+  items            PurchaseItem[]
+  supplierPayments SupplierPayment[]
+}
+
+model PurchaseItem {
+  id           String    @id @default(cuid())
+  purchaseId   String
+  itemId       String
+  quantity     Float
+  unitId       String?
+  buyingPrice  Float
+  sellingPrice Float
+  totalAmount  Float
+  batchCode    String?
+  expireDate   DateTime?
+  createdAt    DateTime  @default(now())
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+  item     Item     @relation(fields: [itemId], references: [id])
+}
+
+model SupplierPayment {
+  id            String   @id @default(cuid())
+  supplierId    String
+  purchaseId    String?
+  locationId    String
+  amount        Float
+  paymentMethod String // CASH, BANK
+  bankAccountId String?
+  referenceNo   String?
+  paymentDate   DateTime @default(now())
+  note          String?
+  createdById   String
+  createdAt     DateTime @default(now())
+
+  supplier Supplier  @relation(fields: [supplierId], references: [id])
+  purchase Purchase? @relation(fields: [purchaseId], references: [id])
+  location Location  @relation(fields: [locationId], references: [id])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  address   String?
+  note      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales            Sale[]
+  customerPayments CustomerPayment[]
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  locationId    String
+  customerId    String?
+  voucherCode   String   @unique
+  saleDate      DateTime @default(now())
+  subTotal      Float
+  discount      Float    @default(0)
+  totalAmount   Float
+  cashAmount    Float    @default(0)
+  bankAmount    Float    @default(0)
+  creditAmount  Float    @default(0)
+  paymentStatus String // PAID, PARTIAL, CREDIT
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  location         Location          @relation(fields: [locationId], references: [id])
+  customer         Customer?         @relation(fields: [customerId], references: [id])
+  items            SaleItem[]
+  customerPayments CustomerPayment[]
+}
+
+model SaleItem {
+  id               String   @id @default(cuid())
+  saleId           String
+  itemId           String
+  inventoryBatchId String
+  quantity         Float
+  sellingPrice     Float
+  discount         Float    @default(0)
+  totalAmount      Float
+  createdAt        DateTime @default(now())
+
+  sale           Sale           @relation(fields: [saleId], references: [id])
+  item           Item           @relation(fields: [itemId], references: [id])
+  inventoryBatch InventoryBatch @relation(fields: [inventoryBatchId], references: [id])
+}
+
+model CustomerPayment {
+  id            String   @id @default(cuid())
+  customerId    String
+  saleId        String?
+  locationId    String
+  amount        Float
+  paymentMethod String // CASH, BANK
+  bankAccountId String?
+  referenceNo   String?
+  paymentDate   DateTime @default(now())
+  note          String?
+  createdById   String
+  createdAt     DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  sale     Sale?    @relation(fields: [saleId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+}
+
+model BankAccount {
+  id             String   @id @default(cuid())
+  accountType    String   @default("BANK") // BANK, CASH
+  displayName    String
+  bankName       String?
+  accountNumber  String?
+  currentBalance Float    @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  transactions BankTransaction[]
+}
+
+model BankTransaction {
+  id              String   @id @default(cuid())
+  bankAccountId   String
+  locationId      String
+  type            String // DEPOSIT, WITHDRAW, SALE_PAYMENT, SUPPLIER_PAYMENT, CASH_TO_BANK
+  amount          Float
+  referenceNo     String?
+  description     String?
+  transactionDate DateTime @default(now())
+  createdById     String
+  createdAt       DateTime @default(now())
+
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+  location    Location    @relation(fields: [locationId], references: [id])
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+  locationId    String
+  name          String
+  category      String?
+  amount        Float
+  paymentMethod String // CASH, BANK
+  bankAccountId String?
+  expenseDate   DateTime @default(now())
+  attachmentUrl String?
+  note          String?
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  location Location @relation(fields: [locationId], references: [id])
+}
+
+model Transfer {
+  id                    String   @id @default(cuid())
+  sourceLocationId      String
+  destinationLocationId String
+  transferDate          DateTime @default(now())
+  status                String // COMPLETED, CANCELLED
+  note                  String?
+  createdById           String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  sourceLocation      Location       @relation("SourceLocation", fields: [sourceLocationId], references: [id])
+  destinationLocation Location       @relation("DestinationLocation", fields: [destinationLocationId], references: [id])
+  items               TransferItem[]
+}
+
+model TransferItem {
+  id               String    @id @default(cuid())
+  transferId       String
+  itemId           String
+  inventoryBatchId String?
+  batchCode        String?
+  expireDate       DateTime?
+  quantity         Float
+  createdAt        DateTime  @default(now())
+
+  transfer Transfer @relation(fields: [transferId], references: [id])
+  item     Item     @relation(fields: [itemId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  locationId String?
+  action     String // CREATE, UPDATE, DELETE, LOGIN, TRANSFER
+  module     String
+  tableName  String?
+  recordId   String?
+  oldData    Json?
+  newData    Json?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
