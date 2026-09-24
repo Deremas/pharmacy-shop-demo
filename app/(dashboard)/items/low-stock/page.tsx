@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, ChevronDown, Package, Search } from "lucide-react";
+import { AlertTriangle, ChevronDown, Search } from "lucide-react";
 import { useAppData } from "@/lib/client/useAppData";
 import { formatItemChoiceLabel, formatUnitLabel, itemVariant } from "@/lib/item-display";
 import { aggregateCatalogStock, alertLevelForStock, thresholdForItem, uniqueCatalogItems } from "@/lib/stock";
@@ -67,10 +67,10 @@ export default function LowStockPage() {
           <table className="w-full min-w-[760px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-bold uppercase tracking-widest text-slate-700 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-slate-300">
+                <th className="px-6 py-4 text-left">SKU</th>
                 <th className="px-6 py-4 text-left">Item</th>
-                <th className="px-6 py-4 text-left">Code</th>
                 <th className="px-6 py-4 text-left">Category</th>
-                <th className="px-6 py-4 text-center">Dispensary</th>
+                <th className="px-6 py-4 text-center">Counter</th>
                 <th className="px-6 py-4 text-center">Store</th>
                 <th className="px-6 py-4 text-center">Total</th>
                 <th className="px-6 py-4 text-center">Threshold</th>
@@ -82,22 +82,13 @@ export default function LowStockPage() {
                 const threshold = thresholdForItem(item);
                 const level = alertLevelForStock(Number(item.stock || 0), threshold);
                 const variant = itemVariant(item, currentLocation?.id);
+                const itemName = variant.sizeLabel && variant.sizeLabel.toLowerCase() !== variant.style.toLowerCase()
+                  ? `${variant.style} ${variant.sizeLabel}`
+                  : item.name || variant.style;
                 return (
                   <tr key={item.id} className="transition-colors hover:bg-slate-50/50 dark:hover:bg-zinc-800/30">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-900/20">
-                          <Package className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">{variant.style}</span>
-                          {variant.sizeLabel && variant.sizeLabel.toLowerCase() !== variant.style.toLowerCase() ? (
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{variant.sizeLabel}</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-mono text-xs font-bold uppercase tracking-tight text-slate-700 dark:text-zinc-300">{item.code || "-"}</td>
+                    <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold uppercase tracking-tight text-slate-700 dark:text-zinc-300">{item.code || "-"}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{itemName}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300">{item.category}</td>
                     <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">{item.shopStock} {formatUnitLabel(item)}</td>
                     <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">{item.storeStock} {formatUnitLabel(item)}</td>

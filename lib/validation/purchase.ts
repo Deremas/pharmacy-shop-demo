@@ -20,14 +20,18 @@ export const createPurchaseSchema = z.object({
     unitCost: moneyInput,
     sellingPrice: moneyInput,
     total: moneyInput,
-    batchCode: z.string().trim().min(1, "Enter the batch number."),
-    expireDate: z.coerce.date(),
+    batchCode: z.string().trim().min(1, "Enter the batch number from the pack, or use an internal lot."),
+    expireDate: z.preprocess(
+      (value) => (value === "" || value == null ? null : value),
+      z.coerce.date().nullable(),
+    ),
   })).min(1, "Add at least one item to the purchase."),
   fsNumber: z.string().trim().optional().nullable(),
 }).superRefine((purchase, context) => {
   const today = new Date();
   const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   purchase.items.forEach((line, index) => {
+    if (!line.expireDate) return;
     const expiry = Date.UTC(line.expireDate.getUTCFullYear(), line.expireDate.getUTCMonth(), line.expireDate.getUTCDate());
     if (expiry <= todayUtc) {
       context.addIssue({ code: "custom", path: ["items", index, "expireDate"], message: "Expiry must be after today." });

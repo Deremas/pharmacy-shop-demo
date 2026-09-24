@@ -351,7 +351,7 @@ function getPageTitle(pathname: string, bankAccounts: Array<{ id: string; displa
     "/items/low-stock": "Low Stock",
     "/items/categories": "Categories",
     "/store": "Store Stock",
-    "/store/locations": "Dispensary Stock",
+    "/store/locations": "Counter Stock",
     "/store/transfers": "Stock Transfers",
     "/store/movements": "Stock Movements",
     "/purchases": "Purchases",

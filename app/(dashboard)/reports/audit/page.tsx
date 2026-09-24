@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function AuditLogsPage() {
-  redirect("/reports?report=audit-security");
+  redirect("/reports?module=Administrative&report=audit-security");
 }

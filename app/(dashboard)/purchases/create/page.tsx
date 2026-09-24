@@ -17,6 +17,8 @@ import { StockLocationToggle } from "@/components/stock-location-toggle";
 import { stockLocationIdsFor } from "@/lib/businesses";
 import { updateDraftField, useBusinessDraft } from "@/lib/client/useBusinessDraft";
 import { eatTodayYmd, parseBusinessDateInput } from "@/lib/eat-date";
+import { expiryInputWarning, openBatches, parseReceiptBatch } from "@/lib/inventory/receipt-batch";
+import { ReceiptBatchFields } from "@/components/receipt-batch-fields";
 
 const NO_SUPPLIER_ID = "__NO_SUPPLIER__";
 
@@ -30,10 +32,12 @@ interface PurchaseLine {
   unit: string;
   batchCode: string;
   expireDate: string;
+  batchChoice: string;
+  noExpiry: boolean;
 }
 
 const PURCHASE_LINE_GRID =
-  "grid grid-cols-[minmax(12rem,1.4fr)_7rem_8rem_4.5rem_minmax(6.5rem,1fr)_minmax(6.5rem,1fr)_minmax(6rem,1fr)_2.5rem] gap-3";
+  "grid grid-cols-[minmax(12rem,1.4fr)_minmax(13rem,1.1fr)_4.5rem_minmax(6.5rem,1fr)_minmax(6.5rem,1fr)_minmax(6rem,1fr)_2.5rem] gap-3";
 
 const emptyPurchaseLine = (): PurchaseLine => ({
   id: Math.random().toString(36).slice(2, 11),
@@ -45,6 +49,8 @@ const emptyPurchaseLine = (): PurchaseLine => ({
   unit: "",
   batchCode: "",
   expireDate: "",
+  batchChoice: "new",
+  noExpiry: false,
 });
 
 type PurchaseDraft = {
@@ -71,7 +77,7 @@ const emptyPurchaseDraft = (): PurchaseDraft => ({
 
 export default function NewPurchasePage() {
   const router = useRouter();
-  const { items = [], products = [], categories = [], units = [], suppliers, addSupplier, addItem, bankAccounts, addPurchase, currentLocation } = useAppData();
+  const { items = [], products = [], categories = [], units = [], suppliers, addSupplier, addItem, bankAccounts, addPurchase, currentLocation, inventoryBatches = [] } = useAppData();
   const { draft, setDraft, clearDraft, draftReady } = useBusinessDraft("purchases-create", emptyPurchaseDraft);
   const purchaseDate = draft.purchaseDate;
   const selectedSupplierId = draft.selectedSupplierId;
@@ -198,6 +204,10 @@ export default function NewPurchasePage() {
             unit: formatUnitLabel(item),
             sellingPrice: item?.price || 0,
             qty: wholeQuantity(line.qty || 1, formatUnitLabel(item)),
+            batchChoice: "new",
+            batchCode: "",
+            expireDate: "",
+            noExpiry: false,
           };
         }
         if (field === "qty") {
@@ -275,8 +285,14 @@ export default function NewPurchasePage() {
 
   const handleSave = async () => {
     if (lines.some(l => !l.itemId)) return alert("Please select items for all lines");
-    if (lines.some(l => !String(l.batchCode || "").trim() || !l.expireDate)) {
-      return alert("Each line needs a batch number and an expiry date.");
+    try {
+      lines.forEach((line) => parseReceiptBatch(line));
+    } catch (error) {
+      return alert(error instanceof Error ? error.message : "Check the batch and expiry on each line.");
+    }
+    const soon = lines.filter((line) => !line.noExpiry && expiryInputWarning(line.expireDate).startsWith("Expires"));
+    if (soon.length > 0 && !window.confirm(`${soon.length} line${soon.length === 1 ? "" : "s"} expire within 90 days. Save this purchase anyway?`)) {
+      return;
     }
     if (!currentLocation?.id || !stockLocationIdsFor(currentLocation.id).includes(stockLocationId)) {
       return alert("Select Dispensary or Store to receive this stock.");
@@ -322,7 +338,7 @@ export default function NewPurchasePage() {
         sellingPrice: line.sellingPrice,
         total: line.qty * line.unitCost,
         batchCode: line.batchCode.trim(),
-        expireDate: line.expireDate,
+        expireDate: line.noExpiry ? null : line.expireDate,
       }))
     };
 
@@ -413,11 +429,10 @@ export default function NewPurchasePage() {
             </div>
             
             <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
-              <div className="min-w-[42rem]">
+              <div className="min-w-[58rem]">
               <div className={cn(PURCHASE_LINE_GRID, "items-end px-3 pb-1")}>
                 <div className={lineHeaderClass}>Item</div>
-                <div className={lineHeaderClass}>Batch</div>
-                <div className={lineHeaderClass}>Expiry</div>
+                <div className={lineHeaderClass}>Batch and expiry</div>
                 <div className={lineHeaderClass}>Qty</div>
                 <div className={lineHeaderClass}>Buying Price</div>
                 <div className={lineHeaderClass}>Selling Price</div>
@@ -444,24 +459,19 @@ export default function NewPurchasePage() {
                         )}
                       />
                     </div>
-                    <div className="min-w-0">
-                      <input
-                        aria-label="Batch number"
-                        value={line.batchCode || ""}
-                        onChange={(event) => updateLine(line.id, "batchCode", event.target.value)}
-                        placeholder="Batch"
-                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-950"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <input
-                        aria-label="Expiry date"
-                        type="date"
-                        value={line.expireDate || ""}
-                        onChange={(event) => updateLine(line.id, "expireDate", event.target.value)}
-                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-950"
-                      />
-                    </div>
+                    <ReceiptBatchFields
+                      compact
+                      value={{
+                        batchChoice: line.batchChoice || "new",
+                        batchCode: line.batchCode || "",
+                        expireDate: line.expireDate || "",
+                        noExpiry: Boolean(line.noExpiry),
+                      }}
+                      existingBatches={stockLocationId ? openBatches(inventoryBatches, line.itemId, stockLocationId) : []}
+                      onChange={(next) => {
+                        setLines(lines.map((entry) => (entry.id === line.id ? { ...entry, ...next } : entry)));
+                      }}
+                    />
                     <div className="min-w-0">
                       <NumericInput
                         aria-label="Qty"

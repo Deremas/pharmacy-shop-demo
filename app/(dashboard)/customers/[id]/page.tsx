@@ -36,7 +36,7 @@ export default function CustomerDetailPage() {
   const detailPayments = useMemo(() => customer ? customerPayments.filter(p => p.customerId === customer.id) : [], [customer, customerPayments]);
   const soldItems = useMemo(() => detailSales.flatMap(sale => sale.items.map(line => {
     const item = items.find(i => i.id === line.itemId);
-    return { ...line, saleId: sale.id, itemName: item?.name || "Unknown item", unit: item?.unit || "" };
+    return { ...line, saleId: sale.id, itemName: item?.name || "Unknown item", itemCode: item?.code || "", unit: item?.unit || "" };
   })), [detailSales, items]);
 
   const salesWithCreditStatus = useMemo(() => {
@@ -355,6 +355,7 @@ export default function CustomerDetailPage() {
           <table className="w-full min-w-[680px]">
             <thead>
               <tr className="text-left text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <th className="px-5 py-4">SKU</th>
                 <th className="px-5 py-4">Item</th>
                 <th className="px-5 py-4">Sale</th>
                 <th className="px-5 py-4 text-right">Qty</th>
@@ -365,9 +366,10 @@ export default function CustomerDetailPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
               {soldItems.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-6 text-sm font-bold text-slate-700 dark:text-slate-300">No items sold to this customer yet.</td></tr>
+                <tr><td colSpan={7} className="px-5 py-6 text-sm font-bold text-slate-700 dark:text-slate-300">No items sold to this customer yet.</td></tr>
               ) : soldItems.map(line => (
                 <tr key={`${line.saleId}-${line.id}`}>
+                  <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold uppercase text-slate-500">{line.itemCode || "-"}</td>
                   <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">{line.itemName}</td>
                   <td className="px-5 py-4 text-xs font-mono text-slate-400">{line.saleId}</td>
                   <td className="px-5 py-4 text-right text-sm font-bold text-slate-600 dark:text-zinc-300">{line.qty} {line.unit}</td>

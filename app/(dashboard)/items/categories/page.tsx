@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   Box,
   Edit,
-  Package,
   Plus,
   Tag,
   Tags,
@@ -19,7 +18,7 @@ import {
 } from "lucide-react";
 import { AppModal } from "@/components/app-modal";
 import { useAppData } from "@/lib/client/useAppData";
-import { formatItemChoiceLabel, formatUnitLabel, itemVariant } from "@/lib/item-display";
+import { formatUnitLabel, itemVariant } from "@/lib/item-display";
 import { formatCurrency } from "@/lib/utils";
 
 type CategoryCard = {
@@ -237,8 +236,8 @@ function CategoriesManager() {
             <table className="w-full min-w-[640px] text-left">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-[10px] font-extrabold uppercase tracking-[0.15em] text-slate-700 dark:border-zinc-800 dark:bg-zinc-950/30 dark:text-zinc-300">
+                  <th className="px-6 py-4">SKU</th>
                   <th className="px-6 py-4">Item</th>
-                  <th className="px-6 py-4">Code</th>
                   <th className="px-6 py-4">Unit</th>
                   <th className="px-6 py-4 text-center">Stock</th>
                   <th className="px-6 py-4 text-right">Selling Price</th>
@@ -248,22 +247,13 @@ function CategoriesManager() {
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
                 {openItems.map((item: any) => {
                   const variant = itemVariant(item, currentLocation?.id);
+                  const itemName = variant.sizeLabel && variant.sizeLabel.toLowerCase() !== variant.style.toLowerCase()
+                    ? `${variant.style} ${variant.sizeLabel}`
+                    : item.name || variant.style;
                   return (
                     <tr key={item.id} className="transition-colors hover:bg-slate-50/50 dark:hover:bg-zinc-800/30">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20">
-                            <Package className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-slate-900 dark:text-white">{variant.style}</p>
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-                              {formatItemChoiceLabel(item, currentLocation?.id)}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-mono text-xs uppercase text-slate-600">{item.code || "-"}</td>
+                      <td className="whitespace-nowrap px-6 py-4 font-mono text-xs uppercase text-slate-600">{item.code || "-"}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{itemName}</td>
                       <td className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-600">{formatUnitLabel(item)}</td>
                       <td className="px-6 py-4 text-center text-sm font-black text-slate-900 dark:text-white">{stockFor(item.id)}</td>
                       <td className="px-6 py-4 text-right font-mono text-sm font-black">{formatCurrency(item.price || item.sellingPrice || 0)}</td>

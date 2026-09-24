@@ -27,7 +27,7 @@ export default function SupplierDetailPage() {
   const detailPayments = useMemo(() => supplier ? supplierPayments.filter(p => p.supplierId === supplier.id) : [], [supplier, supplierPayments]);
   const purchasedItems = useMemo(() => detailPurchases.flatMap(purchase => purchase.items.map(line => {
     const item = items.find(i => i.id === line.itemId);
-    return { ...line, purchaseId: purchase.id, itemName: item?.name || "Unknown item", unit: item?.unit || "" };
+    return { ...line, purchaseId: purchase.id, itemName: item?.name || "Unknown item", itemCode: item?.code || "", unit: item?.unit || "" };
   })), [detailPurchases, items]);
 
   // FIFO Dynamic Debt Outstanding Allocation
@@ -341,6 +341,7 @@ export default function SupplierDetailPage() {
           <table className="w-full min-w-[680px]">
             <thead>
               <tr className="text-left text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <th className="px-5 py-4">SKU</th>
                 <th className="px-5 py-4">Item</th>
                 <th className="px-5 py-4">Purchase</th>
                 <th className="px-5 py-4 text-right">Qty</th>
@@ -351,9 +352,10 @@ export default function SupplierDetailPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
               {purchasedItems.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-6 text-sm font-bold text-slate-700 dark:text-slate-300">No purchased items from this supplier yet.</td></tr>
+                <tr><td colSpan={7} className="px-5 py-6 text-sm font-bold text-slate-700 dark:text-slate-300">No purchased items from this supplier yet.</td></tr>
               ) : purchasedItems.map(line => (
                 <tr key={`${line.purchaseId}-${line.id}`}>
+                  <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold uppercase text-slate-500">{line.itemCode || "-"}</td>
                   <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">{line.itemName}</td>
                   <td className="px-5 py-4 text-xs font-mono text-slate-400">{line.purchaseId}</td>
                   <td className="px-5 py-4 text-right text-sm font-bold text-slate-600 dark:text-zinc-300">{line.qty} {line.unit}</td>

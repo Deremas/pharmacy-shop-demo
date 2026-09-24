@@ -69,6 +69,7 @@ export default function TransfersPage() {
             <thead>
               <tr className="bg-slate-50 dark:bg-zinc-950/50 border-b border-slate-100 dark:border-zinc-800">
                 <th className="px-6 py-4 text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Date / ID</th>
+                <th className="px-6 py-4 text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">SKU</th>
                 <th className="px-6 py-4 text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest w-1/4 min-w-[200px]">Item</th>
                 <th className="px-6 py-4 text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Category</th>
                 <th className="px-6 py-4 text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">From</th>
@@ -80,7 +81,7 @@ export default function TransfersPage() {
             <tbody className="divide-y divide-slate-50 dark:divide-zinc-800/50">
               {transfers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                     <div className="flex flex-col items-center gap-2 opacity-30">
                       <ArrowRightLeft className="w-12 h-12" />
                       <p className="text-xs font-black uppercase tracking-widest">No transfers recorded</p>
@@ -100,10 +101,8 @@ export default function TransfersPage() {
                         <p className="text-xs font-black text-slate-700 dark:text-zinc-200">{new Date(tr.date).toLocaleDateString()}</p>
                         <p className="text-[10px] font-mono text-slate-400">{tr.id}</p>
                       </td>
-                      <td className="px-6 py-4">
-                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{item?.name}</p>
-                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{item?.code}</p>
-                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold uppercase text-slate-600">{item?.code || "-"}</td>
+                      <td className="px-6 py-4 text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">{item?.name || "-"}</td>
                       <td className="px-6 py-4">
                         <span className="inline-flex px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 rounded-lg text-[9px] font-black uppercase tracking-widest border border-indigo-100/40 dark:border-indigo-900/30">
                           {categoryName}

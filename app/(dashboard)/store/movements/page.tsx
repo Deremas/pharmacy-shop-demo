@@ -69,7 +69,8 @@ export default function MovementsPage() {
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-bold uppercase tracking-widest text-slate-700 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-slate-300">
                 <th className="px-6 py-4 text-left">Type</th>
-                <th className="px-6 py-4 text-left">Item / Product</th>
+                <th className="px-6 py-4 text-left">SKU</th>
+                <th className="px-6 py-4 text-left">Item</th>
                 {showLocation && <th className="px-6 py-4 text-left">Location</th>}
                 <th className="px-6 py-4 text-center">Quantity</th>
                 <th className="px-6 py-4 text-center">Before / After</th>
@@ -91,10 +92,8 @@ export default function MovementsPage() {
                         {String(movement.type || "").replace(/_/g, " ")}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">{movement.itemName}</p>
-                      <p className="font-mono text-[10px] uppercase text-slate-400">{movement.itemCode || "-"}</p>
-                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold uppercase tracking-tight text-slate-700 dark:text-zinc-300">{movement.itemCode || "-"}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-slate-800 dark:text-zinc-200">{movement.itemName}</td>
                     {showLocation && (
                       <td className="px-6 py-4 text-xs font-bold text-slate-500">{movement.locationName}</td>
                     )}
@@ -115,7 +114,7 @@ export default function MovementsPage() {
               })}
               {filteredMovements.length === 0 ? (
                 <tr>
-                  <td colSpan={showLocation ? 7 : 6} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
+                  <td colSpan={showLocation ? 8 : 7} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
                     No movements found
                   </td>
                 </tr>

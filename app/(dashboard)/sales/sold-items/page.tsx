@@ -94,6 +94,7 @@ export default function SoldItemsPage() {
               <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:border-zinc-800 dark:bg-zinc-950/50">
                 <th className="px-5 py-4">Date</th>
                 <th className="px-5 py-4">Sale</th>
+                <th className="px-5 py-4">SKU</th>
                 <th className="px-5 py-4">Item</th>
                 <th className="px-5 py-4">Customer</th>
                 {showLocation && <th className="px-5 py-4">Location</th>}
@@ -107,7 +108,7 @@ export default function SoldItemsPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={showLocation ? 10 : 9} className="px-5 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
+                  <td colSpan={showLocation ? 11 : 10} className="px-5 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
                     No sold items found
                   </td>
                 </tr>
@@ -115,10 +116,8 @@ export default function SoldItemsPage() {
                 <tr key={`${row.sale.id}-${row.line.id}`} className="hover:bg-slate-50 dark:hover:bg-zinc-800/30">
                   <td className="px-5 py-4 text-sm font-semibold text-slate-500">{new Date(row.sale.saleDate).toLocaleDateString()}</td>
                   <td className="px-5 py-4 text-sm font-black text-slate-950 dark:text-white">{row.sale.id}</td>
-                  <td className="px-5 py-4">
-                    <p className="text-sm font-black text-slate-950 dark:text-white">{row.item}</p>
-                    <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">{row.code || row.line.itemId}</p>
-                  </td>
+                  <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold uppercase tracking-widest text-slate-500">{row.code || "-"}</td>
+                  <td className="px-5 py-4 text-sm font-black text-slate-950 dark:text-white">{row.item}</td>
                   <td className="px-5 py-4 text-sm font-semibold text-slate-500">{row.customer}</td>
                   {showLocation && (
                     <td className="px-5 py-4 text-sm font-semibold text-slate-500">{row.location}</td>

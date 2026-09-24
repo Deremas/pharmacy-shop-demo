@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import {
   Search,
   Filter,
-  Package,
   User,
   ExternalLink,
   ChevronLeft,
@@ -115,7 +114,8 @@ export default function SoldItems() {
           <table className="w-full min-w-[980px] text-left">
             <thead>
               <tr className="bg-slate-50/50 dark:bg-zinc-950/30 text-[10px] text-slate-500 font-bold uppercase tracking-widest border-b border-slate-200 dark:border-zinc-800">
-                <th className="px-6 py-4">Product Details</th>
+                <th className="px-6 py-4">SKU</th>
+                <th className="px-6 py-4">Item</th>
                 <th className="px-6 py-4">Customer</th>
                 <th className="px-6 py-4">Quantity</th>
                 <th className="px-6 py-4">Unit Price</th>
@@ -129,23 +129,14 @@ export default function SoldItems() {
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
               {soldItems.length === 0 ? (
                 <tr>
-                  <td colSpan={showLocation ? 9 : 8} className="px-6 py-14 text-center text-sm font-bold text-slate-400">
+                  <td colSpan={showLocation ? 10 : 9} className="px-6 py-14 text-center text-sm font-bold text-slate-400">
                     No sold items found.
                   </td>
                 </tr>
               ) : soldItems.map((item: any) => (
                 <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/20 transition-colors font-sans">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-slate-400">
-                        <Package className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800 dark:text-zinc-200 truncate max-w-[200px]">{item.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono tracking-tighter">{item.code || item.itemId}</p>
-                      </div>
-                    </div>
-                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold uppercase tracking-tight text-slate-600">{item.code || "-"}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-800 dark:text-zinc-200">{item.name}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-zinc-400 text-xs">
                       <User className="w-3 h-3 text-slate-300" />

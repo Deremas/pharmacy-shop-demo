@@ -3,7 +3,7 @@
 import Link from "next/link";
 import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Calendar, CreditCard, MapPin, Package, Receipt, User } from "lucide-react";
+import { ArrowLeft, Calendar, CreditCard, MapPin, Receipt, User } from "lucide-react";
 
 import { useAppData } from "@/lib/client/useAppData";
 import { useCan } from "@/lib/client/useCan";
@@ -89,6 +89,7 @@ export default function SaleDetailPage() {
             <table className="w-full min-w-[720px] text-left">
               <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-zinc-950 dark:text-zinc-400">
                 <tr>
+                  <th className="px-6 py-4">SKU</th>
                   <th className="px-6 py-4 w-1/3 min-w-[220px]">Item</th>
                   <th className="px-6 py-4">Category</th>
                   <th className="px-6 py-4 text-right">Qty</th>
@@ -104,15 +105,9 @@ export default function SaleDetailPage() {
                   const categoryName = item?.category || "General";
                   return (
                     <tr key={line.id} className="hover:bg-slate-50/50 dark:hover:bg-zinc-800/10 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-300">
-                            <Package className="h-4.5 w-4.5" />
-                          </div>
-                          <span className="text-sm font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                            {item?.name ?? line.itemId}
-                          </span>
-                        </div>
+                      <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold uppercase text-slate-600">{item?.code || "-"}</td>
+                      <td className="px-6 py-4 text-sm font-black tracking-tight text-slate-900 dark:text-white">
+                        {item?.name ?? line.itemId}
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 rounded-lg text-[9px] font-black uppercase tracking-widest border border-indigo-100/40 dark:border-indigo-900/30">

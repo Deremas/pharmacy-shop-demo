@@ -68,6 +68,7 @@ export default function ExpiryPage() {
         <table className="w-full min-w-[760px] text-sm">
           <thead className="text-left text-[11px] font-black uppercase tracking-widest text-slate-500">
             <tr>
+              <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">Medicine</th>
               <th className="px-4 py-3">Batch</th>
               <th className="px-4 py-3">Expiry</th>
@@ -82,6 +83,7 @@ export default function ExpiryPage() {
           <tbody>
             {rows.map((row: any) => (
               <tr key={row.id} className="border-t border-slate-100 dark:border-zinc-800">
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-bold uppercase">{row.code || "—"}</td>
                 <td className="px-4 py-3 font-bold">{row.name}</td>
                 <td className="px-4 py-3 font-mono text-xs">{row.batchCode || "—"}</td>
                 <td className="px-4 py-3">{row.expireDate ? String(row.expireDate).slice(0, 10) : "—"}</td>
@@ -100,7 +102,7 @@ export default function ExpiryPage() {
               </tr>
             ))}
             {rows.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No batches in this band.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No batches in this band.</td></tr>
             ) : null}
           </tbody>
         </table>

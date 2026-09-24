@@ -13,7 +13,7 @@ import {
   stockLocationIdsFor,
   stockLocationLabel,
 } from "@/lib/businesses";
-import { formatItemChoiceLabel, formatUnitLabel, itemSelectOption } from "@/lib/item-display";
+import { formatUnitLabel, itemSelectOption } from "@/lib/item-display";
 import { wholeQuantity } from "@/lib/units";
 import { DAMAGE_REASON_PRESETS } from "@/lib/stock-reasons";
 import { formatCurrency, cn } from "@/lib/utils";
@@ -271,6 +271,7 @@ export default function DamagePage() {
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:border-zinc-800 dark:bg-zinc-950/50">
                 <th className="px-5 py-3">Date</th>
+                <th className="px-5 py-3">SKU</th>
                 <th className="px-5 py-3">Item</th>
                 <th className="px-5 py-3">At</th>
                 <th className="px-5 py-3 text-right">Qty</th>
@@ -282,7 +283,7 @@ export default function DamagePage() {
               {paged.rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-5 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-400"
                   >
                     No damage records yet
@@ -300,17 +301,8 @@ export default function DamagePage() {
                       <td className="px-5 py-3 text-xs font-semibold text-slate-500">
                         {new Date(row.createdAt).toLocaleString()}
                       </td>
-                      <td className="px-5 py-3">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">
-                          {formatItemChoiceLabel(
-                            { name: row.itemName, code: row.itemCode, locationId: row.locationId },
-                            currentLocation?.id,
-                          )}
-                        </p>
-                        <p className="font-mono text-[10px] uppercase text-slate-400">
-                          {row.itemCode || "-"}
-                        </p>
-                      </td>
+                      <td className="whitespace-nowrap px-5 py-3 font-mono text-xs font-bold uppercase text-slate-600">{row.itemCode || "-"}</td>
+                      <td className="px-5 py-3 text-sm font-bold text-slate-900 dark:text-white">{row.itemName || "-"}</td>
                       <td className="px-5 py-3 text-xs font-bold uppercase tracking-widest text-slate-500">
                         {stockLocationLabel(row.locationId, row.locationType)}
                       </td>

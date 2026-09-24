@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function TaxReportsPage() {
-  redirect("/reports/finance");
+  redirect("/reports?module=Finance");
 }

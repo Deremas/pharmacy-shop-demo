@@ -9,8 +9,13 @@ import { useAppData } from "@/lib/client/useAppData";
 import { matchesStockView } from "@/lib/businesses";
 import { formatItemChoiceLabel, itemVariant } from "@/lib/item-display";
 import { ADJUSTMENT_REASON_PRESETS } from "@/lib/stock-reasons";
+import { expiryTone, formatExpiryDay, openBatches, parseReceiptBatch, soonestBatch } from "@/lib/inventory/receipt-batch";
+import { BatchListModal } from "@/components/batch-list-modal";
+import { ReceiptBatchFields, type ReceiptBatchValue } from "@/components/receipt-batch-fields";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useSession } from "next-auth/react";
+
+const emptyReceipt = (): ReceiptBatchValue => ({ batchChoice: "new", batchCode: "", expireDate: "", noExpiry: false });
 
 export default function StoreStockPage() {
   return <StockView locationType="STORE" title="Store Stock" description="Stock held in store locations." />;
@@ -27,7 +32,7 @@ export function StockView({
 }) {
   const { data: session } = useSession();
   const user = session?.user as any;
-  const { items = [], products = [], locations = [], currentLocation, adjustStock, addStockEntry, updateItemPrice } = useAppData();
+  const { items = [], products = [], locations = [], currentLocation, inventoryBatches = [], adjustStock, addStockEntry, updateItemPrice } = useAppData();
   const [search, setSearch] = React.useState("");
   const [locationId, setLocationId] = React.useState("");
   const [category, setCategory] = React.useState("");
@@ -35,9 +40,11 @@ export function StockView({
   const [adjustingItem, setAdjustingItem] = React.useState<any>(null);
   const [adjustQuantity, setAdjustQuantity] = React.useState("");
   const [adjustReason, setAdjustReason] = React.useState("");
+  const [adjustReceipt, setAdjustReceipt] = React.useState<ReceiptBatchValue>(emptyReceipt);
   const [adjustError, setAdjustError] = React.useState("");
+  const [batchItem, setBatchItem] = React.useState<any>(null);
   const [stockEntryItem, setStockEntryItem] = React.useState<any>(null);
-  const [stockEntry, setStockEntry] = React.useState({ quantity: "", buyingPrice: "", sellingPrice: "", note: "" });
+  const [stockEntry, setStockEntry] = React.useState({ quantity: "", buyingPrice: "", sellingPrice: "", note: "", ...emptyReceipt() });
   const [stockEntryError, setStockEntryError] = React.useState("");
   const [priceEditingItem, setPriceEditingItem] = React.useState<any>(null);
   const [priceValues, setPriceValues] = React.useState({ buyingPrice: "", sellingPrice: "" });
@@ -111,6 +118,7 @@ export function StockView({
     setAdjustingItem(item);
     setAdjustQuantity(String(item.stock || 0));
     setAdjustReason("");
+    setAdjustReceipt(emptyReceipt());
     setAdjustError("");
   };
 
@@ -118,12 +126,23 @@ export function StockView({
     event.preventDefault();
     if (!adjustingItem) return;
     setAdjustError("");
+    const nextQuantity = Number(adjustQuantity);
+    const increasing = nextQuantity > Number(adjustingItem.stock || 0);
+    if (increasing) {
+      try {
+        parseReceiptBatch(adjustReceipt);
+      } catch (error) {
+        setAdjustError(error instanceof Error ? error.message : "Enter the batch for the added quantity.");
+        return;
+      }
+    }
     try {
       await adjustStock({
         itemId: adjustingItem.id,
         locationId: adjustingItem.locationId,
-        quantity: Number(adjustQuantity),
+        quantity: nextQuantity,
         reason: adjustReason,
+        ...(increasing ? adjustReceipt : {}),
       });
       setAdjustingItem(null);
     } catch (error) {
@@ -138,6 +157,7 @@ export function StockView({
       buyingPrice: String(Number(item.buyingPrice || 0)),
       sellingPrice: String(Number(item.sellingPrice || item.price || 0)),
       note: "Opening stock entry",
+      ...emptyReceipt(),
     });
     setStockEntryError("");
   };
@@ -147,6 +167,12 @@ export function StockView({
     if (!stockEntryItem) return;
     setStockEntryError("");
     try {
+      parseReceiptBatch(stockEntry);
+    } catch (error) {
+      setStockEntryError(error instanceof Error ? error.message : "Enter the batch and expiry for this stock.");
+      return;
+    }
+    try {
       await addStockEntry({
         itemId: stockEntryItem.id,
         locationId: stockEntryItem.locationId,
@@ -154,6 +180,9 @@ export function StockView({
         buyingPrice: Number(stockEntry.buyingPrice),
         sellingPrice: Number(stockEntry.sellingPrice),
         note: stockEntry.note,
+        batchCode: stockEntry.batchCode,
+        expireDate: stockEntry.expireDate,
+        noExpiry: stockEntry.noExpiry,
       });
       setStockEntryItem(null);
     } catch (error) {
@@ -199,7 +228,7 @@ export function StockView({
       <div className="page-stats">
         <StatCard title="Stock Value" value={formatCurrency(totalValue)} sub="Filtered value" icon={Database} />
         <StatCard title="Stock Quantity" value={totalQty.toLocaleString()} sub="Available units" icon={Package} />
-        <StatCard title="Locations" value={scopedLocations.length.toString()} sub={locationType === "STORE" ? "Stores" : "Dispensaries"} icon={Warehouse} />
+        <StatCard title="Locations" value={scopedLocations.length.toString()} sub={locationType === "STORE" ? "Stores" : "Counters"} icon={Warehouse} />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -222,14 +251,16 @@ export function StockView({
         </div>
 
         <div className="overflow-x-auto overscroll-x-contain">
-          <table className="w-full min-w-[900px]">
+          <table className="w-full min-w-[1040px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-bold uppercase tracking-widest text-slate-700 dark:border-zinc-800 dark:bg-zinc-950/50 dark:text-slate-300">
-                <th className="px-6 py-4 text-left">Item / SKU</th>
+                <th className="px-6 py-4 text-left">SKU</th>
+                <th className="px-6 py-4 text-left">Item</th>
                 <th className="px-6 py-4 text-left">Category</th>
                 <th className="px-6 py-4 text-right">Buying Price</th>
                 <th className="px-6 py-4 text-right">Unit Selling</th>
                 <th className="px-6 py-4 text-center">Current Qty</th>
+                <th className="px-6 py-4 text-left">Nearest expiry</th>
                 <th className="px-6 py-4 text-right">Total Value</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 {canAdjustStock && <th className="px-6 py-4 text-right">Action</th>}
@@ -239,19 +270,13 @@ export function StockView({
               {filteredStock.map((item: any) => {
                 const stockStatus = getStockStatus(item);
                 const variant = itemVariant(item, item.locationId);
+                const itemName = variant.sizeLabel && variant.sizeLabel.toLowerCase() !== variant.style.toLowerCase()
+                  ? `${variant.style} ${variant.sizeLabel}`
+                  : item.name || variant.style;
                 return (
                   <tr key={`${item.id}-${item.locationId}`} className="transition-colors hover:bg-slate-50/50 dark:hover:bg-zinc-800/30">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-100 text-slate-400 dark:bg-zinc-800">
-                          <Package className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-900 dark:text-white">{variant.style}</h4>
-                          <p className="font-mono text-[10px] uppercase text-slate-400">{item.code || "-"}</p>
-                        </div>
-                      </div>
-                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold uppercase tracking-tight text-slate-700 dark:text-zinc-300">{item.code || "-"}</td>
+                    <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{itemName}</td>
                     <td className="px-6 py-4 text-xs font-bold text-slate-500">{item.category}</td>
                     <td className="px-6 py-4 text-right text-xs font-bold text-slate-900 dark:text-zinc-100">
                       <div className="flex items-center justify-end gap-2">
@@ -284,6 +309,19 @@ export function StockView({
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center text-xs font-black text-indigo-600 dark:text-indigo-400">{item.stock}</td>
+                    <td className="px-6 py-4">
+                      {(() => {
+                        const batches = openBatches(inventoryBatches, item.id, item.locationId);
+                        const soonest = soonestBatch(batches);
+                        if (!soonest) return <span className="text-xs font-bold text-slate-400">—</span>;
+                        return (
+                          <button type="button" onClick={() => setBatchItem(item)} className="text-left">
+                            <span className={cn("block text-xs font-black", expiryTone(soonest.expireDate))}>{formatExpiryDay(soonest.expireDate)}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600">{batches.length} batch{batches.length === 1 ? "" : "es"}</span>
+                          </button>
+                        );
+                      })()}
+                    </td>
                     <td className="px-6 py-4 text-right text-xs font-bold text-slate-900 dark:text-zinc-100">{formatCurrency(Number(item.stock || 0) * Number(item.price || 0))}</td>
                     <td className="px-6 py-4 text-center">
                       <div className={cn(
@@ -321,7 +359,7 @@ export function StockView({
               })}
               {filteredStock.length === 0 ? (
                 <tr>
-                  <td colSpan={canAdjustStock ? 9 : 8} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
+                  <td colSpan={canAdjustStock ? 11 : 10} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
                     No stock records found
                   </td>
                 </tr>
@@ -369,6 +407,16 @@ export function StockView({
                 customPlaceholder="Describe the stock adjustment reason..."
               />
             </div>
+            {Number(adjustQuantity) > Number(adjustingItem?.stock || 0) ? (
+              <div className="mt-4 rounded-xl border border-slate-200 p-4 dark:border-zinc-800">
+                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Batch for the added quantity</p>
+                <ReceiptBatchFields
+                  value={adjustReceipt}
+                  existingBatches={openBatches(inventoryBatches, adjustingItem?.id, adjustingItem?.locationId)}
+                  onChange={setAdjustReceipt}
+                />
+              </div>
+            ) : null}
 
             {adjustError && <p className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600 dark:bg-rose-950/30">{adjustError}</p>}
 
@@ -436,6 +484,14 @@ export function StockView({
                 </label>
               </div>
 
+              <div className="mt-4 rounded-xl border border-slate-200 p-4 dark:border-zinc-800">
+                <ReceiptBatchFields
+                  value={stockEntry}
+                  existingBatches={openBatches(inventoryBatches, stockEntryItem?.id, stockEntryItem?.locationId)}
+                  onChange={(next) => setStockEntry((current) => ({ ...current, ...next }))}
+                />
+              </div>
+
               <label className="mt-4 block">
                 <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Note</span>
                 <textarea
@@ -458,6 +514,17 @@ export function StockView({
               </div>
             </form>
       </AppModal>
+
+      <BatchListModal
+        open={Boolean(batchItem)}
+        onClose={() => setBatchItem(null)}
+        title={batchItem?.name || "Batches"}
+        subtitle={locations.find((location: any) => location.id === batchItem?.locationId)?.name}
+        batches={openBatches(inventoryBatches, batchItem?.id, batchItem?.locationId).map((batch) => ({
+          ...batch,
+          locationName: locations.find((location: any) => location.id === batch.locationId)?.name,
+        }))}
+      />
 
       <AppModal open={Boolean(priceEditingItem)} onClose={() => setPriceEditingItem(null)} labelledBy="stock-price-title">
             <form onSubmit={submitPriceUpdate} className="p-6">

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -95,13 +96,33 @@ const reports: ReportDefinition[] = [
 
 const visibleReports = reports.filter((report) => !report.hidden);
 
+const reportModules: Array<{
+  id: Exclude<Category, "All">;
+  description: string;
+  permission: string;
+  icon: React.ElementType;
+}> = [
+  { id: "Sales", description: "Sale numbers, items, customers, discounts, and daily totals.", permission: "reports.sales.view", icon: ShoppingCart },
+  { id: "Inventory", description: "Current stock, movements, valuation, expiry, batches, and aging.", permission: "reports.inventory.view", icon: Boxes },
+  { id: "Procurement", description: "Purchases, suppliers, and amounts still owed.", permission: "reports.inventory.view", icon: Truck },
+  { id: "Finance", description: "Expenses, bank movement, cash deposits, and profit.", permission: "reports.finance.view", icon: Wallet },
+  { id: "Credit", description: "Customer balances and recorded credit payments.", permission: "reports.finance.view", icon: CreditCard },
+  { id: "Administrative", description: "Audit trail and activity by user.", permission: "reports.audit.view", icon: ShieldCheck },
+];
+
 export default function ReportsPage() {
   const state = useReportData();
   const { locations } = state;
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const sessionUser = session?.user as { role?: string; permissions?: string[] } | undefined;
+  const permissionKeys = new Set(sessionUser?.permissions || []);
+  const canModule = (permission: string) =>
+    sessionUser?.role === "Super Admin" || permissionKeys.has("reports.view") || permissionKeys.has(permission);
   const scope = useReportScope(locations, state.currentLocation);
-  const [activeCategory, setActiveCategory] = React.useState<Category>("All");
+  const moduleParam = searchParams.get("module");
+  const activeModule = reportModules.find((entry) => entry.id === moduleParam && canModule(entry.permission)) || null;
   const [search, setSearch] = React.useState("");
   const [dateFrom, setDateFrom] = React.useState("");
   const [dateTo, setDateTo] = React.useState("");
@@ -114,8 +135,9 @@ export default function ReportsPage() {
   }, [searchParams]);
 
   const filteredReports = visibleReports.filter((report) => {
+    if (!activeModule || report.category !== activeModule.id) return false;
     const searchHaystack = `${report.title} ${report.description} ${report.category} ${report.filters.join(" ")}`.toLowerCase();
-    return (activeCategory === "All" || report.category === activeCategory) && searchHaystack.includes(search.toLowerCase());
+    return searchHaystack.includes(search.toLowerCase());
   });
   const openedReport = openedReportId ? visibleReports.find((report) => report.id === openedReportId) || null : null;
 
@@ -135,24 +157,75 @@ export default function ReportsPage() {
         selectedLocationId={selectedLocationId}
         onBack={() => {
           setOpenedReportId(null);
-          router.push("/reports");
+          const moduleId = activeModule?.id || openedReport.category;
+          const allowed = reportModules.some((entry) => entry.id === moduleId && canModule(entry.permission));
+          router.push(allowed ? `/reports?module=${encodeURIComponent(moduleId)}` : "/reports");
         }}
       />
+    );
+  }
+
+  const visibleModules = reportModules.filter((entry) => canModule(entry.permission));
+
+  if (!activeModule) {
+    return (
+      <div className="space-y-6 pb-20 font-sans animate-in fade-in duration-500">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Reports</h1>
+          <p className="mt-1 text-sm font-semibold text-slate-500">
+            Choose a module. Each module opens its own report list and filters.
+          </p>
+        </div>
+        <ReportScopeBar label={scope.label} />
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {visibleModules.map((entry) => {
+            const Icon = entry.icon;
+            const count = visibleReports.filter((report) => report.category === entry.id).length;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => router.push(`/reports?module=${encodeURIComponent(entry.id)}`)}
+                className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <ArrowUpRight className="h-4 w-4 text-slate-400 transition group-hover:text-indigo-600" />
+                </div>
+                <h2 className="mt-4 text-lg font-black text-slate-950 dark:text-white">{entry.id}</h2>
+                <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">{entry.description}</p>
+                <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-indigo-600">{count} reports</p>
+              </button>
+            );
+          })}
+        </section>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6 pb-20 font-sans animate-in fade-in duration-500">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Reports</h1>
-          <p className="mt-1 text-sm font-semibold text-slate-500">
-            Figures follow the business selected in the top bar. Admin and roles with report access see that company only.
-          </p>
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/reports")}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            aria-label="Back to report modules"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-600">Reports</p>
+            <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-white">{activeModule.id}</h1>
+            <p className="mt-1 text-sm font-semibold text-slate-500">{activeModule.description}</p>
+          </div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Available Reports</p>
-          <p className="mt-1 text-xl font-black text-slate-950 dark:text-white">{visibleReports.length}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Reports</p>
+          <p className="mt-1 text-xl font-black text-slate-950 dark:text-white">{filteredReports.length}</p>
         </div>
       </div>
 
@@ -160,15 +233,17 @@ export default function ReportsPage() {
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_minmax(140px,170px)_minmax(140px,170px)_120px] xl:items-end">
-          <div className="relative min-w-0">
+          <div className="min-w-0">
             <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Search</label>
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search reports, filters, or modules..."
-              className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950"
-            />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={`Search ${activeModule.id.toLowerCase()} reports...`}
+                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950"
+              />
+            </div>
           </div>
           <DateField label="Date From" value={dateFrom} onChange={setDateFrom} />
           <DateField label="Date To" value={dateTo} onChange={setDateTo} />
@@ -180,24 +255,6 @@ export default function ReportsPage() {
             Reset
           </button>
         </div>
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          {categories.map((category) => (
-            <button
-              key={category}
-              type="button"
-              onClick={() => setActiveCategory(category)}
-              className={cn(
-                "rounded-xl px-4 py-2 text-xs font-black transition",
-                activeCategory === category
-                  ? "bg-slate-950 text-white shadow-lg shadow-slate-950/15 dark:bg-white dark:text-slate-950"
-                  : "border border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 dark:border-zinc-800 dark:bg-zinc-950",
-              )}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
       </section>
 
       <section>
@@ -208,11 +265,16 @@ export default function ReportsPage() {
               report={report}
               onOpen={() => {
                 setOpenedReportId(report.id);
-                router.push(`/reports?report=${report.id}`);
+                router.push(`/reports?module=${encodeURIComponent(activeModule.id)}&report=${report.id}`);
               }}
             />
           ))}
         </div>
+        {filteredReports.length === 0 ? (
+          <p className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center text-sm font-bold text-slate-500 dark:border-zinc-800 dark:bg-zinc-900">
+            No reports match this search.
+          </p>
+        ) : null}
       </section>
     </div>
   );
@@ -302,11 +364,12 @@ function ReportDetailView({
   onBack: () => void;
 }) {
   const Icon = report.icon;
+  const usesDates = !["inventory-quantity", "stock-replenishment", "zero-stock", "stock-valuation", "branch-stock-comparison", "customer-credit-aging", "supplier-payables"].includes(report.id);
   const [filters, setFilters] = React.useState<ReportFilters>({
     search: "",
     locationId: selectedLocationId,
-    dateFrom,
-    dateTo,
+    dateFrom: usesDates ? dateFrom : "",
+    dateTo: usesDates ? dateTo : "",
     customerId: "",
     supplierId: "",
     itemId: "",
@@ -358,9 +421,12 @@ function ReportDetailView({
   const showCategoryFilter = ["sold-items", "total-sales-by-item", "sales-profitability", "product-ranking", "stock-valuation", "inventory-quantity", "inventory-as-of", "stock-replenishment", "zero-stock", "branch-stock-comparison", "slow-moving-items", "purchased-items", "stock-damage", "expense-analysis"].includes(report.id);
   const showPaymentFilter = ["sales-by-number", "sales-list", "purchase-list", "expense-analysis", "customer-payment-history"].includes(report.id);
   const showAccountFilter = ["expense-analysis", "bank-transactions", "cash-to-bank"].includes(report.id);
-  const showStatusFilter = ["inventory-quantity", "stock-replenishment", "purchase-list"].includes(report.id);
+  const showStatusFilter = ["inventory-quantity", "stock-replenishment", "purchase-list", "sales-list"].includes(report.id);
+  const statusOptions = report.id === "inventory-quantity" || report.id === "stock-replenishment"
+    ? ["OK", "Low Stock", "Out of Stock"]
+    : ["PAID", "PARTIAL", "UNPAID"];
   const showMovementFilter = report.id === "stock-movement-log";
-  const showDateFilters = !["inventory-quantity", "stock-replenishment", "zero-stock", "stock-valuation", "branch-stock-comparison", "customer-credit-aging", "supplier-payables"].includes(report.id);
+  const showDateFilters = usesDates;
 
   return (
     <div className="space-y-6 pb-20 font-sans animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -437,7 +503,7 @@ function ReportDetailView({
           <SelectFilter label="Item" value={filters.itemId} onChange={(value) => setFilter("itemId", value)} hidden={!showItemFilter} options={reportItems.map((item) => ({ value: String(item.id), label: formatItemChoiceLabel(item, selectedLocationId) }))} />
           <SelectFilter label="Category" value={filters.category} onChange={(value) => setFilter("category", value)} hidden={!showCategoryFilter} options={(report.id === "expense-analysis" ? expenseCategoryOptions : categoryOptions).map((category) => ({ value: category, label: category }))} />
           <SelectFilter label="Account" value={filters.accountId} onChange={(value) => setFilter("accountId", value)} hidden={!showAccountFilter} options={(state.bankAccounts || []).map((account) => ({ value: String(account.id), label: String(account.displayName) }))} />
-          <SelectFilter label="Status" value={filters.status} onChange={(value) => setFilter("status", value)} hidden={!showStatusFilter} options={["OK", "Low Stock", "Out of Stock", "PAID", "PARTIAL", "UNPAID"].map((status) => ({ value: status, label: status.replace(/_/g, " ") }))} />
+          <SelectFilter label="Status" value={filters.status} onChange={(value) => setFilter("status", value)} hidden={!showStatusFilter} options={statusOptions.map((status) => ({ value: status, label: status.replace(/_/g, " ") }))} />
           <SelectFilter label="Movement Type" value={filters.status} onChange={(value) => setFilter("status", value)} hidden={!showMovementFilter} options={Array.from(new Set<string>((state.inventoryMovements || []).map((movement: any) => String(movement.type || "")).filter(Boolean))).sort().map((status) => ({ value: status, label: status.replace(/_/g, " ") }))} />
           <div className="flex items-end gap-3">
             <div className="flex h-12 flex-1 items-center rounded-xl bg-indigo-50 px-4 text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:bg-indigo-950/40">

@@ -3,7 +3,6 @@
 import React from "react";
 import { 
   Search, 
-  Package,
   RefreshCw,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
@@ -82,7 +81,9 @@ export default function AllLocationStock() {
           <table className="w-full min-w-[860px] text-left">
             <thead>
               <tr className="bg-slate-50/50 dark:bg-zinc-950/30 text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] border-b border-slate-200 dark:border-zinc-800">
-                <th className="px-6 py-5">Global Product Catalog</th>
+                <th className="px-6 py-5">SKU</th>
+                <th className="px-6 py-5">Item</th>
+                <th className="px-6 py-5">Category</th>
                 {locations.map((location: any) => (
                   <th key={location.id} className="px-6 py-5 text-center">{stockLocationLabel(location.id, location.type)}</th>
                 ))}
@@ -93,23 +94,15 @@ export default function AllLocationStock() {
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800 font-sans">
               {matrix.length === 0 ? (
                 <tr>
-                  <td colSpan={locations.length + 3} className="px-6 py-14 text-center text-sm font-bold text-slate-400">
+                  <td colSpan={locations.length + 5} className="px-6 py-14 text-center text-sm font-bold text-slate-400">
                     No stock records found.
                   </td>
                 </tr>
               ) : matrix.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/20 transition-colors group">
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-3">
-                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center text-slate-300 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10 transition-colors">
-                          <Package className="w-5 h-5 transition-transform group-hover:scale-110" />
-                       </div>
-                       <div>
-                          <p className="text-sm font-black text-slate-800 dark:text-zinc-200 truncate max-w-[180px]">{item.item}</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-0.5">{item.category}</p>
-                       </div>
-                    </div>
-                  </td>
+                  <td className="whitespace-nowrap px-6 py-5 font-mono text-xs font-bold uppercase text-slate-600">{item.code || "-"}</td>
+                  <td className="px-6 py-5 text-sm font-black text-slate-800 dark:text-zinc-200">{item.item}</td>
+                  <td className="px-6 py-5 text-xs font-bold uppercase tracking-widest text-slate-500">{item.category || "-"}</td>
                   {locations.map((location: any) => (
                     <td key={location.id} className="px-6 py-5 text-center font-mono text-xs font-bold text-slate-500 dark:text-zinc-400">
                       {item.breakdown[location.id] || 0}

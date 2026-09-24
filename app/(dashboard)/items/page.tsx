@@ -1,19 +1,22 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, ChevronDown, Edit, Package, Plus, Search, Trash } from "lucide-react";
+import { AlertTriangle, ChevronDown, Edit, Plus, Search, Trash } from "lucide-react";
 import Link from "next/link";
 import { useAppData } from "@/lib/client/useAppData";
 import { useCan } from "@/lib/client/useCan";
 import { formatItemChoiceLabel, formatUnitLabel, itemVariant } from "@/lib/item-display";
+import { expiryTone, formatExpiryDay, openBatches, soonestBatch } from "@/lib/inventory/receipt-batch";
+import { BatchListModal } from "@/components/batch-list-modal";
 import { cn, formatCurrency } from "@/lib/utils";
 
 export default function ItemList() {
-  const { products = [], items = [], currentLocation, deleteItem } = useAppData();
+  const { products = [], items = [], locations = [], currentLocation, inventoryBatches = [], deleteItem } = useAppData();
   const can = useCan();
   const [search, setSearch] = React.useState("");
   const [category, setCategory] = React.useState("");
   const [itemToDelete, setItemToDelete] = React.useState<string | null>(null);
+  const [batchItem, setBatchItem] = React.useState<any>(null);
 
   const catalog = React.useMemo(() => {
     if (products.length > 0) return products;
@@ -96,15 +99,16 @@ export default function ItemList() {
         </div>
 
         <div className="overflow-x-auto overscroll-x-contain">
-          <table className="w-full min-w-[860px] text-left">
+          <table className="w-full min-w-[980px] text-left">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70 text-[10px] font-extrabold uppercase tracking-[0.15em] text-slate-700 dark:border-zinc-800 dark:bg-zinc-950/30 dark:text-zinc-300">
-                <th className="whitespace-nowrap px-6 py-5">Product Details</th>
-                <th className="whitespace-nowrap px-6 py-5">Item Code</th>
+                <th className="whitespace-nowrap px-6 py-5">SKU</th>
+                <th className="whitespace-nowrap px-6 py-5">Item</th>
                 <th className="whitespace-nowrap px-6 py-5">Category</th>
                 <th className="whitespace-nowrap px-6 py-5">Unit</th>
                 <th className="whitespace-nowrap px-6 py-5">Active Stock</th>
                 <th className="whitespace-nowrap px-6 py-5">Total Stock</th>
+                <th className="whitespace-nowrap px-6 py-5">Nearest expiry</th>
                 <th className="whitespace-nowrap px-6 py-5">Selling Price</th>
                 <th className="whitespace-nowrap px-6 py-5 text-right">Actions</th>
               </tr>
@@ -113,29 +117,34 @@ export default function ItemList() {
               {filteredItems.map((item: any) => {
                 const activeStock = stockFor(item.id, currentLocation?.id);
                 const totalStock = stockFor(item.id);
+                const itemBatches = openBatches(inventoryBatches, item.id);
+                const soonest = soonestBatch(itemBatches);
                 const variant = itemVariant(item, currentLocation?.id);
+                const itemName = variant.sizeLabel && variant.sizeLabel.toLowerCase() !== variant.style.toLowerCase()
+                  ? `${variant.style} ${variant.sizeLabel}`
+                  : item.name || variant.style;
                 return (
                   <tr key={item.id} className="transition-all hover:bg-slate-50 dark:hover:bg-zinc-800/20">
-                    <td className="max-w-xs px-6 py-5">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300">
-                          <Package className="h-6 w-6" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-black uppercase tracking-tight text-slate-900 dark:text-zinc-200">{variant.style}</p>
-                          {variant.sizeLabel && variant.sizeLabel.toLowerCase() !== variant.style.toLowerCase() ? (
-                            <p className="text-[10px] font-bold uppercase tracking-tight text-slate-600 dark:text-zinc-400">{variant.sizeLabel}</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </td>
                     <td className="whitespace-nowrap px-6 py-5 font-mono text-xs uppercase tracking-tighter text-slate-700 dark:text-zinc-300">{item.code || "-"}</td>
+                    <td className="max-w-xs px-6 py-5">
+                      <p className="truncate text-sm font-black text-slate-900 dark:text-zinc-200">{itemName}</p>
+                    </td>
                     <td className="whitespace-nowrap px-6 py-5 text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300">{item.category || "-"}</td>
                     <td className="whitespace-nowrap px-6 py-5 text-xs font-bold text-slate-700 dark:text-zinc-300">{formatUnitLabel(item)}</td>
                     <td className="px-6 py-5 text-sm font-black">
                       <span className={cn(activeStock <= Number(item.lowStockAlert || 10) ? "text-rose-600" : "text-slate-900 dark:text-white")}>{activeStock} {formatUnitLabel(item)}</span>
                     </td>
                     <td className="px-6 py-5 text-sm font-black text-slate-900 dark:text-white">{totalStock} {formatUnitLabel(item)}</td>
+                    <td className="px-6 py-5">
+                      {soonest ? (
+                        <button type="button" onClick={() => setBatchItem(item)} className="text-left">
+                          <span className={cn("block text-xs font-black", expiryTone(soonest.expireDate))}>{formatExpiryDay(soonest.expireDate)}</span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600">{itemBatches.length} batch{itemBatches.length === 1 ? "" : "es"}</span>
+                        </button>
+                      ) : (
+                        <span className="text-xs font-bold text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-5 font-mono text-sm font-black text-slate-900 dark:text-zinc-100">{formatCurrency(item.price || 0)} / {formatUnitLabel(item)}</td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -160,7 +169,7 @@ export default function ItemList() {
               })}
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
+                  <td colSpan={9} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
                     No items found
                   </td>
                 </tr>
@@ -169,6 +178,17 @@ export default function ItemList() {
           </table>
         </div>
       </div>
+
+      <BatchListModal
+        open={Boolean(batchItem)}
+        onClose={() => setBatchItem(null)}
+        title={batchItem?.name || "Batches"}
+        subtitle="Open batches for this item"
+        batches={openBatches(inventoryBatches, batchItem?.id).map((batch) => ({
+          ...batch,
+          locationName: locations.find((location: any) => location.id === batch.locationId)?.name || currentLocation?.name,
+        }))}
+      />
 
       {itemToDelete ? (
         <div className="fixed inset-0 z-[100] overflow-y-auto overscroll-contain flex justify-center bg-black/40 p-4 backdrop-blur-sm pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">

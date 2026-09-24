@@ -29,7 +29,8 @@ interface MenuItem {
   path: string;
   color: string;
   permission?: string;
-  children?: { label: string; path: string; permission?: string }[];
+  anyPermission?: string[];
+  children?: { label: string; path: string; permission?: string; anyPermission?: string[] }[];
 }
 
 const menuItems: MenuItem[] = [
@@ -54,7 +55,7 @@ const menuItems: MenuItem[] = [
       },
       // { label: "Create Item", path: "/items/create", permission: "inventory.items.create" },
       {
-        label: "Dispensary Stock",
+        label: "Counter Stock",
         path: "/store/locations",
         permission: "inventory.stock.view",
       },
@@ -224,27 +225,7 @@ const menuItems: MenuItem[] = [
       {
         label: "Reports",
         path: "/reports",
-        permission: "reports.view",
-      },
-      {
-        label: "Sales Reports",
-        path: "/reports/sales",
-        permission: "reports.sales.view",
-      },
-      {
-        label: "Inventory Reports",
-        path: "/reports/inventory",
-        permission: "reports.inventory.view",
-      },
-      {
-        label: "Finance Reports",
-        path: "/reports/finance",
-        permission: "reports.finance.view",
-      },
-      {
-        label: "Audit Report",
-        path: "/reports/audit",
-        permission: "reports.audit.view",
+        anyPermission: ["reports.view", "reports.sales.view", "reports.inventory.view", "reports.finance.view", "reports.audit.view"],
       },
       {
         label: "Pharmacies",
@@ -394,17 +375,20 @@ export function Sidebar({
   const brand = getBusinessBrand(activeBusiness);
   const permissionKeys = new Set<string>(user?.permissions || []);
   const isSuperAdmin = user?.role === "Super Admin";
-  const can = (permission?: string) =>
-    !permission || isSuperAdmin || permissionKeys.has(permission);
+  const can = (permission?: string, anyPermission?: string[]) =>
+    isSuperAdmin ||
+    (!permission && !anyPermission?.length) ||
+    Boolean(permission && permissionKeys.has(permission)) ||
+    Boolean(anyPermission?.some((key) => permissionKeys.has(key)));
   const visibleMenuItems = React.useMemo(
     () =>
       menuItems
         .map((item) => ({
           ...item,
-          children: item.children?.filter((child) => can(child.permission)),
+          children: item.children?.filter((child) => can(child.permission, child.anyPermission)),
         }))
         .filter(
-          (item) => can(item.permission) || Boolean(item.children?.length),
+          (item) => can(item.permission, item.anyPermission) || Boolean(item.children?.length),
         ),
     [isSuperAdmin, user?.permissions],
   );

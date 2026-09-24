@@ -11,6 +11,7 @@ import { createSale, deleteSale, completePendingSale, cancelPendingSale } from "
 import { createPurchaseReturn, createSaleReturn, voidSale } from "@/lib/actions/returns";
 import { disposeBatch } from "@/lib/actions/disposal";
 import { availableBatchQuantity, isSellableBatch } from "@/lib/inventory/fefo";
+import { parseReceiptBatch } from "@/lib/inventory/receipt-batch";
 import { assertWholeQuantity } from "@/lib/units";
 import { createPurchase, deletePurchase } from "@/lib/actions/purchases";
 import { createTransfer } from "@/lib/actions/transfers";
@@ -1801,22 +1802,47 @@ export async function POST(request: NextRequest) {
       const beforeQuantity = current._sum.remainingQuantity || 0;
       const delta = quantity - beforeQuantity;
 
+      let adjustedBatchId: string | undefined;
       if (delta > 0) {
+        const receipt = parseReceiptBatch(payload);
         const latestBatch = await tx.inventoryBatch.findFirst({
           where: { itemId: payload.itemId, locationId: payload.locationId },
           orderBy: { createdAt: "desc" },
         });
-        await tx.inventoryBatch.create({
-          data: {
+        const buyingPrice = latestBatch?.buyingPrice ?? item.defaultBuyingPrice;
+        const sellingPrice = latestBatch?.sellingPrice ?? item.defaultSellingPrice;
+        const existingBatch = await tx.inventoryBatch.findFirst({
+          where: {
             itemId: payload.itemId,
             locationId: payload.locationId,
-            quantityIn: delta,
-            remainingQuantity: delta,
-            buyingPrice: latestBatch?.buyingPrice ?? item.defaultBuyingPrice,
-            sellingPrice: latestBatch?.sellingPrice ?? item.defaultSellingPrice,
-            batchCode: `ADJ-${Date.now()}`,
+            batchCode: receipt.batchCode,
+            expireDate: receipt.expireDate,
+            buyingPrice,
+            status: "ACTIVE",
           },
         });
+        const batch = existingBatch
+          ? await tx.inventoryBatch.update({
+              where: { id: existingBatch.id },
+              data: {
+                quantityIn: { increment: delta },
+                remainingQuantity: { increment: delta },
+                sellingPrice,
+              },
+            })
+          : await tx.inventoryBatch.create({
+              data: {
+                itemId: payload.itemId,
+                locationId: payload.locationId,
+                quantityIn: delta,
+                remainingQuantity: delta,
+                buyingPrice,
+                sellingPrice,
+                batchCode: receipt.batchCode,
+                expireDate: receipt.expireDate,
+              },
+            });
+        adjustedBatchId = batch.id;
       } else if (delta < 0) {
         let remainingDecrease = Math.abs(delta);
         const batchesToReduce = await tx.inventoryBatch.findMany({
@@ -1840,6 +1866,7 @@ export async function POST(request: NextRequest) {
         data: {
           itemId: payload.itemId,
           locationId: payload.locationId,
+          inventoryBatchId: adjustedBatchId,
           type: "ADJUSTMENT",
           quantity: delta,
           beforeQuantity,
@@ -2044,6 +2071,12 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(buyingPrice) || buyingPrice < 0 || !Number.isFinite(sellingPrice) || sellingPrice < 0) {
       return NextResponse.json({ ok: false, error: "Buying and selling prices must be non-negative numbers." }, { status: 400 });
     }
+    let receipt: ReturnType<typeof parseReceiptBatch>;
+    try {
+      receipt = parseReceiptBatch(payload);
+    } catch (error) {
+      return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Batch details are invalid." }, { status: 400 });
+    }
 
     const stockEntry = await runSerializableTransaction(async (tx) => {
       const item = await tx.item.findUniqueOrThrow({ where: { id: payload.itemId } });
@@ -2058,17 +2091,39 @@ export async function POST(request: NextRequest) {
       });
       const beforeQuantity = before._sum.remainingQuantity || 0;
 
-      const batch = await tx.inventoryBatch.create({
-        data: {
+      const buying = asMoney(buyingPrice);
+      const selling = asMoney(sellingPrice);
+      const existingBatch = await tx.inventoryBatch.findFirst({
+        where: {
           itemId: payload.itemId,
           locationId: payload.locationId,
-          quantityIn: quantity,
-          remainingQuantity: quantity,
-          buyingPrice: asMoney(buyingPrice),
-          sellingPrice: asMoney(sellingPrice),
-          batchCode: payload.batchCode || `OPEN-${Date.now()}`,
+          batchCode: receipt.batchCode,
+          expireDate: receipt.expireDate,
+          buyingPrice: buying,
+          status: "ACTIVE",
         },
       });
+      const batch = existingBatch
+        ? await tx.inventoryBatch.update({
+            where: { id: existingBatch.id },
+            data: {
+              quantityIn: { increment: quantity },
+              remainingQuantity: { increment: quantity },
+              sellingPrice: selling,
+            },
+          })
+        : await tx.inventoryBatch.create({
+            data: {
+              itemId: payload.itemId,
+              locationId: payload.locationId,
+              quantityIn: quantity,
+              remainingQuantity: quantity,
+              buyingPrice: buying,
+              sellingPrice: selling,
+              batchCode: receipt.batchCode,
+              expireDate: receipt.expireDate,
+            },
+          });
 
       await tx.item.update({
         where: { id: item.id },

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Truck, Search, Package } from "lucide-react";
+import { Truck, Search } from "lucide-react";
 
 import { useAppData } from "@/lib/client/useAppData";
 import { isTenantBusiness } from "@/lib/businesses";
@@ -148,6 +148,7 @@ export default function PurchaseItemsPage() {
               <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:border-zinc-800 dark:bg-zinc-950/50">
                 <th className="px-5 py-4">Date</th>
                 <th className="px-5 py-4">Purchase ID</th>
+                <th className="px-5 py-4">SKU</th>
                 <th className="px-5 py-4">Item</th>
                 <th className="px-5 py-4">Supplier</th>
                 {showLocation && <th className="px-5 py-4">Location</th>}
@@ -162,7 +163,7 @@ export default function PurchaseItemsPage() {
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={showLocation ? 10 : 9}
+                    colSpan={showLocation ? 11 : 10}
                     className="px-5 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500"
                   >
                     No purchased items found
@@ -180,21 +181,8 @@ export default function PurchaseItemsPage() {
                     <td className="px-5 py-4 text-sm font-black text-slate-950 dark:text-white">
                       {row.purchase.id}
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-500 dark:bg-amber-900/20 shrink-0">
-                          <Package className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-black text-slate-950 dark:text-white truncate">
-                            {row.item}
-                          </p>
-                          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">
-                            {row.code || row.line.itemId} - {row.unit}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 font-mono text-xs font-bold uppercase tracking-widest text-slate-500">{row.code || "-"}</td>
+                    <td className="px-5 py-4 text-sm font-black text-slate-950 dark:text-white">{row.item}</td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-500">
                       {row.supplier}
                     </td>

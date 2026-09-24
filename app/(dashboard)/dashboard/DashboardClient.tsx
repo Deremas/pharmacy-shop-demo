@@ -202,14 +202,14 @@ export default function Dashboard() {
             actionHref="/sales"
           />
         )}
-        {can("reports.view") && can("sales.view") && (
+        {(can("reports.view") || can("reports.sales.view")) && can("sales.view") && (
           <SmallStatCard
             title="TODAY'S PROFIT"
             value={formatCurrency(totalTodayProfit)}
             change={`${todaySales.length} txns`}
             icon={TrendingUp}
             action="VIEW ANALYSIS"
-            actionHref="/reports/sales"
+            actionHref="/reports?module=Sales"
             trend="up"
           />
         )}
@@ -301,7 +301,7 @@ export default function Dashboard() {
             icon={Bell}
             color="indigo"
             action="REVIEW LOGS"
-            actionHref="/reports/audit"
+            actionHref="/reports?module=Administrative&report=audit-security"
           />
         )}
       </div>
