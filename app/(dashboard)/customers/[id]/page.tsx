@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, CreditCard, Mail, Package, Phone, Receipt, ShoppingBag, UserRound, WalletCards, AlertCircle } from "lucide-react";
+import { ChevronDown, CreditCard, Mail, Package, Phone, Receipt, ShoppingBag, UserRound, WalletCards, AlertCircle } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 import { NumericInput } from "@/components/numeric-input";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useAppData } from "@/lib/client/useAppData";
@@ -63,11 +63,9 @@ export default function CustomerDetailPage() {
   if (!customer) {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
-        <Link href="/customers" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600">
-          <ArrowLeft className="w-4 h-4" /> Customers
-        </Link>
-        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8">
+        <div className="flex items-start justify-between gap-3">
           <h1 className="text-2xl font-black text-slate-900 dark:text-white">Customer not found</h1>
+          <BackButton href="/customers" />
         </div>
       </div>
     );
@@ -115,10 +113,7 @@ export default function CustomerDetailPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-        <div className="space-y-4">
-          <Link href="/customers" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600">
-            <ArrowLeft className="w-4 h-4" /> Customers
-          </Link>
+        <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600">
               <UserRound className="w-7 h-7" />
@@ -132,6 +127,7 @@ export default function CustomerDetailPage() {
               </div>
             </div>
           </div>
+          <BackButton href="/customers" />
         </div>
 
         {customer.balance > 0 && (

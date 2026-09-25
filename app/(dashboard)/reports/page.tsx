@@ -4,7 +4,6 @@ import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  ArrowLeft,
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
@@ -35,6 +34,7 @@ import { ReportScopeBar, useReportScope } from "@/components/report-scope-bar";
 import { formatItemChoiceLabel } from "@/lib/item-display";
 import { isBatchExpired } from "@/lib/inventory/fefo";
 import { paymentMethodLabel } from "@/lib/payment-display";
+import { BackButton } from "@/components/back-button";
 
 const categories = ["All", "Sales", "Inventory", "Procurement", "Finance", "Credit", "Administrative"] as const;
 
@@ -512,14 +512,6 @@ function ReportDetailView({
     <div className="space-y-6 pb-20 font-sans animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="page-heading">
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900"
-            aria-label="Back to reports"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
               <Icon className="h-7 w-7" />
@@ -531,18 +523,21 @@ function ReportDetailView({
             </div>
           </div>
         </div>
-        <a
-          href={report.route || "#"}
-          className={cn(
-            "page-action h-11 gap-2 rounded-xl px-5 text-xs font-black uppercase tracking-widest transition",
-            report.route
-              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 hover:bg-indigo-500"
-              : "bg-slate-100 text-slate-400 dark:bg-zinc-800",
-          )}
-        >
-          Open Related View
-          <ArrowUpRight className="h-4 w-4" />
-        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          <BackButton onClick={onBack} />
+          <a
+            href={report.route || "#"}
+            className={cn(
+              "page-action h-11 gap-2 rounded-xl px-5 text-xs font-black uppercase tracking-widest transition",
+              report.route
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20 hover:bg-indigo-500"
+                : "bg-slate-100 text-slate-400 dark:bg-zinc-800",
+            )}
+          >
+            Open Related View
+            <ArrowUpRight className="h-4 w-4" />
+          </a>
+        </div>
       </div>
 
       <div className={cn("grid gap-4", report.id === "bank-transactions" ? "md:grid-cols-4" : "md:grid-cols-3")}>

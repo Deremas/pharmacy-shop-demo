@@ -296,12 +296,15 @@ export async function createSale(input: unknown, actor: WriteActor) {
   });
 
   if ("pending" in result && result.pending) {
-    const telegram = await notifyBusiness(result.locationId, [
+    const voucherLines = [
       tgTitle("🟡", "VOUCHER"),
       escapeHtml(String(result.voucherCode || "")),
       `Total: ${formatEtb(result.totalAmount)}`,
       "Waiting for cashier",
-    ]);
+    ];
+    const heldPrescription = String(data.prescriptionNumber || "").trim();
+    if (heldPrescription) voucherLines.push(`Prescription: ${escapeHtml(heldPrescription)}`);
+    const telegram = await notifyBusiness(result.locationId, voucherLines);
     return { id: result.id, voucherCode: result.voucherCode, pending: true, telegram };
   }
 
@@ -323,6 +326,8 @@ export async function createSale(input: unknown, actor: WriteActor) {
   if (result.bankAmount > 0 && result.bankAccountName) {
     telegramLines.push(`Bank: ${escapeHtml(result.bankAccountName)}`);
   }
+  const soldPrescription = String(data.prescriptionNumber || "").trim();
+  if (soldPrescription) telegramLines.push(`Prescription: ${escapeHtml(soldPrescription)}`);
   telegramLines.push(`Items: ${result.items.length}`, ...formatItemListLines(result.items));
   const telegram = await notifyBusiness(result.locationId, telegramLines);
   voidNotifyLowStock(result.locationId, result.lowStock);

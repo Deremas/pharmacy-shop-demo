@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Building2, ChevronDown, UserCircle2 } from "lucide-react";
+import { Building2, ChevronDown, UserCircle2 } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 import { useAppData } from "@/lib/client/useAppData";
 import { PasswordInput } from "@/components/password-input";
 import { cn } from "@/lib/utils";
@@ -64,15 +65,15 @@ export default function CreateUserPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-6 animate-in fade-in duration-500">
-      <div>
-        <Link href="/admin/users" className="mb-2 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600">
-          <ArrowLeft className="h-4 w-4" /> Users
-        </Link>
-        <h1 className="flex items-center gap-3 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-          <UserCircle2 className="h-7 w-7 text-indigo-600" />
-          Add New User
-        </h1>
-        <p className="mt-1 text-[11px] font-black uppercase tracking-widest text-slate-500">Set permissions and business access</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-3 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+            <UserCircle2 className="h-7 w-7 text-indigo-600" />
+            Add New User
+          </h1>
+          <p className="mt-1 text-[11px] font-black uppercase tracking-widest text-slate-500">Set permissions and business access</p>
+        </div>
+        <BackButton href="/admin/users" />
       </div>
 
       <form onSubmit={handleSubmit} className="mx-auto max-w-xl space-y-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">

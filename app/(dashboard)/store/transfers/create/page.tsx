@@ -3,7 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRightLeft, X } from "lucide-react";
+import { ArrowRightLeft, X } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 import { useAppData } from "@/lib/client/useAppData";
 import { NumericInput } from "@/components/numeric-input";
 import { useSession } from "next-auth/react";
@@ -65,11 +66,9 @@ export default function CreateTransferPage() {
 
   if (!canCreateTransfer) {
     return (
-      <div className="p-6">
+      <div className="flex items-start justify-between gap-3 p-6">
         <p className="text-sm font-bold text-slate-500">You do not have permission to create transfers.</p>
-        <Link href="/store/transfers" className="mt-4 inline-flex text-xs font-black uppercase tracking-widest text-indigo-600">
-          Back to transfers
-        </Link>
+        <BackButton href="/store/transfers" />
       </div>
     );
   }
@@ -97,17 +96,17 @@ export default function CreateTransferPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-6 animate-in fade-in duration-500">
-      <div>
-        <Link href="/store/transfers" className="mb-2 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600">
-          <ArrowLeft className="h-4 w-4" /> Transfers
-        </Link>
-        <h1 className="flex items-center gap-3 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-          <ArrowRightLeft className="h-7 w-7 text-indigo-600" />
-          New Stock Transfer
-        </h1>
-        <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-500">
-          Move inventory between shop and store in {currentLocation?.name || "this business"}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-3 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+            <ArrowRightLeft className="h-7 w-7 text-indigo-600" />
+            New Stock Transfer
+          </h1>
+          <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-500">
+            Move inventory between shop and store in {currentLocation?.name || "this business"}
+          </p>
+        </div>
+        <BackButton href="/store/transfers" />
       </div>
 
       <form onSubmit={handleSubmit} className="mx-auto max-w-2xl space-y-6 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-8">

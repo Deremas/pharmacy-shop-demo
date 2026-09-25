@@ -1,7 +1,7 @@
 "use client";
 
 import React, { Suspense, useState } from "react";
-import { ArrowLeft, Save, Barcode, Layers, Tag, X, ChevronDown } from "lucide-react";
+import { Save, Barcode, Layers, Tag, X, ChevronDown } from "lucide-react";
 import { CodeScanButton } from "@/components/code-scanner";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppData } from "@/lib/client/useAppData";
@@ -11,6 +11,7 @@ import { formatUnitLabel } from "@/lib/item-display";
 import { wholeQuantity } from "@/lib/units";
 import { allocateItemCode, suggestItemCode } from "@/lib/item-code";
 import { useBusinessDraft } from "@/lib/client/useBusinessDraft";
+import { BackButton } from "@/components/back-button";
 
 export default function CreateItemPage() {
   return (
@@ -278,12 +279,8 @@ function CreateItemForm() {
   return (
     <div className="mx-auto flex min-h-full max-w-4xl flex-col animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex-1 space-y-6">
-      <div className="flex items-center justify-between border-b border-slate-200 p-4 pb-6 dark:border-zinc-800">
-        <div className="flex items-center gap-4">
-          <button type="button" onClick={handleCancel} className="rounded-full p-2 transition-colors hover:bg-slate-100 dark:hover:bg-zinc-800">
-            <ArrowLeft className="h-5 w-5 text-slate-700" />
-          </button>
-          <div>
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4 pb-6 dark:border-zinc-800">
+          <div className="min-w-0">
             <h1 className="px-1 text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
               {editId ? "Edit Item" : "Create New Item"}
             </h1>
@@ -291,7 +288,7 @@ function CreateItemForm() {
               {editId ? "Update item details for this business" : "Inventory Asset Registration"}
             </p>
           </div>
-        </div>
+          <BackButton onClick={handleCancel} />
       </div>
 
       {editId && loading && !editingItem ? (

@@ -21,6 +21,7 @@ import { controlMutedClass } from "@/lib/field-styles";
 import { BankAccountSelect, bankAccountsOnly, needsBankAccount } from "@/components/bank-account-select";
 import { paymentMethodLabel } from "@/lib/payment-display";
 import { AppModal } from "@/components/app-modal";
+import { PrescriptionFields } from "@/components/prescription-fields";
 import { CodeScanButton } from "@/components/code-scanner";
 import { findItemByScan } from "@/lib/pack-scan";
 import { updateDraftField, useBusinessDraft } from "@/lib/client/useBusinessDraft";
@@ -38,6 +39,9 @@ const emptyPosDraft = () => ({
   selectedBankId: "",
   cashPaid: 0,
   bankPaid: 0,
+  prescriptionNumber: "",
+  patientName: "",
+  prescriberName: "",
 });
 
 export default function PosPage() {
@@ -58,6 +62,12 @@ export default function PosPage() {
   const setSelectedBankId = updateDraftField(setDraft, "selectedBankId");
   const setCashPaid = updateDraftField(setDraft, "cashPaid");
   const setBankPaid = updateDraftField(setDraft, "bankPaid");
+  const prescriptionNumber = draft.prescriptionNumber || "";
+  const patientName = draft.patientName || "";
+  const prescriberName = draft.prescriberName || "";
+  const setPrescriptionNumber = updateDraftField(setDraft, "prescriptionNumber");
+  const setPatientName = updateDraftField(setDraft, "patientName");
+  const setPrescriberName = updateDraftField(setDraft, "prescriberName");
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", email: "" });
   const bankOptions = useMemo(() => bankAccountsOnly(bankAccounts), [bankAccounts]);
@@ -74,6 +84,8 @@ export default function PosPage() {
     () => items.filter((i) => i.locationId === currentLocation?.id),
     [items, currentLocation?.id],
   );
+  const itemNeedsPrescription = (item: { id?: string; requiresPrescription?: boolean }) =>
+    Boolean(item?.requiresPrescription || products.find((entry) => entry.id === item?.id)?.requiresPrescription);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -186,6 +198,12 @@ export default function PosPage() {
       return;
     }
 
+    const prescriptionSale = cart.some((item) => itemNeedsPrescription(item));
+    if (prescriptionSale && !prescriptionNumber.trim()) {
+      toast.error("This sale includes a prescription medicine. Enter the prescription number.");
+      return;
+    }
+
     const sale = {
       customerId: resolveSaleCustomerId(selectedCustomerId),
       locationId: currentLocation.id,
@@ -198,6 +216,9 @@ export default function PosPage() {
       creditAmount,
       paymentMethod,
       bankAccountId: needsBankAccount(paymentMethod, bankAmount) ? selectedBankId : undefined,
+      prescriptionNumber: prescriptionSale ? prescriptionNumber.trim() : "",
+      patientName: prescriptionSale ? patientName.trim() : "",
+      prescriberName: prescriptionSale ? prescriberName.trim() : "",
       items: cart.map(item => ({
         itemId: item.id,
         qty: item.quantity,
@@ -288,13 +309,18 @@ export default function PosPage() {
               )}
             >
               <div className="mb-3 flex items-start justify-between gap-2">
-                <span
-                  className={cn(
-                    "rounded-full bg-slate-50 px-2 py-1 text-[9px] font-black text-slate-500 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-950 dark:text-zinc-400 dark:ring-zinc-800",
-                    item.stock <= 0 && "bg-rose-50 text-rose-600 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/50",
-                  )}
-                >
-                  {item.stock > 0 ? `${item.stock} ${formatUnitLabel(item)}` : "Out"}
+                <span className="flex min-w-0 items-center gap-1">
+                  <span
+                    className={cn(
+                      "rounded-full bg-slate-50 px-2 py-1 text-[9px] font-black text-slate-500 shadow-sm ring-1 ring-slate-200 dark:bg-zinc-950 dark:text-zinc-400 dark:ring-zinc-800",
+                      item.stock <= 0 && "bg-rose-50 text-rose-600 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/50",
+                    )}
+                  >
+                    {item.stock > 0 ? `${item.stock} ${formatUnitLabel(item)}` : "Out"}
+                  </span>
+                  {itemNeedsPrescription(item) ? (
+                    <span className="rounded-full bg-indigo-50 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-indigo-700 ring-1 ring-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900/40">Rx</span>
+                  ) : null}
                 </span>
                 <div
                   className={cn(
@@ -397,6 +423,9 @@ export default function PosPage() {
                   <div className="flex items-start justify-between gap-4 pr-7">
                     <div className="flex min-w-0 items-center gap-2">
                       <h4 className="min-w-0 truncate text-xs font-bold text-slate-800 dark:text-zinc-200">{variant.style}</h4>
+                      {itemNeedsPrescription(item) ? (
+                        <span className="shrink-0 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">Rx</span>
+                      ) : null}
                       {variant.badge ? (
                         <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-900 dark:text-zinc-100 dark:bg-zinc-800">
                           {variant.badge}
@@ -513,6 +542,16 @@ export default function PosPage() {
             ) : null}
           </div>
 
+          {cart.some((item) => itemNeedsPrescription(item)) ? (
+            <PrescriptionFields
+              prescriptionNumber={prescriptionNumber}
+              patientName={patientName}
+              prescriberName={prescriberName}
+              onPrescriptionNumber={setPrescriptionNumber}
+              onPatientName={setPatientName}
+              onPrescriberName={setPrescriberName}
+            />
+          ) : null}
           <div className="space-y-2">
             {taxRate > 0 ? (
               <>

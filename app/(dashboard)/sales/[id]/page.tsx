@@ -3,7 +3,8 @@
 import Link from "next/link";
 import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Calendar, CreditCard, MapPin, Receipt, User } from "lucide-react";
+import { Calendar, CreditCard, MapPin, Receipt, User } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 
 import { useAppData } from "@/lib/client/useAppData";
 import { useCan } from "@/lib/client/useCan";
@@ -47,21 +48,17 @@ export default function SaleDetailPage() {
     <div className="mx-auto max-w-6xl space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="page-heading">
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-600">Sale Details</p>
             <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">{sale.id}</h1>
           </div>
         </div>
-        <Link href="/sales" className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-          Sales list
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <BackButton onClick={() => router.back()} />
+          <Link href="/sales" className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+            Sales list
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -79,6 +76,14 @@ export default function SaleDetailPage() {
           ].filter(Boolean).join(" · ") || undefined}
         />
       </div>
+
+      {sale.prescriptionNumber || sale.patientName || sale.prescriberName ? (
+        <div className="grid gap-4 md:grid-cols-3">
+          <InfoBlock label="Prescription number" value={sale.prescriptionNumber || "-"} />
+          <InfoBlock label="Patient" value={sale.patientName || "-"} />
+          <InfoBlock label="Prescriber" value={sale.prescriberName || "-"} />
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -107,7 +112,12 @@ export default function SaleDetailPage() {
                     <tr key={line.id} className="hover:bg-slate-50/50 dark:hover:bg-zinc-800/10 transition-colors">
                       <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold uppercase text-slate-600">{item?.code || "-"}</td>
                       <td className="px-6 py-4 text-sm font-black tracking-tight text-slate-900 dark:text-white">
-                        {item?.name ?? line.itemId}
+                        <span className="inline-flex items-center gap-2">
+                          {item?.name ?? line.itemId}
+                          {product?.requiresPrescription ? (
+                            <span className="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">Rx</span>
+                          ) : null}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 rounded-lg text-[9px] font-black uppercase tracking-widest border border-indigo-100/40 dark:border-indigo-900/30">

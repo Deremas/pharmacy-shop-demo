@@ -3,7 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CheckSquare2, ChevronDown, Loader2, Save, Square } from "lucide-react";
+import { CheckSquare2, ChevronDown, Loader2, Save, Square } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 import { useAppData } from "@/lib/client/useAppData";
 import { cn } from "@/lib/utils";
 import { formatPermissionLabel, groupPermissions, permissionsInCatalogOrder } from "@/lib/permission-catalog";
@@ -69,21 +70,21 @@ export default function EditRolePage() {
   if (loading && !role) return <div className="p-6 text-sm font-bold text-slate-500">Loading role...</div>;
   if (!role) {
     return (
-      <div className="p-6">
+      <div className="flex items-start justify-between gap-3 p-6">
         <p className="text-sm font-bold text-slate-500">Role not found.</p>
-        <Link href="/admin/roles" className="mt-4 inline-flex text-xs font-black uppercase tracking-widest text-indigo-600">Back</Link>
+        <BackButton href="/admin/roles" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div>
-        <Link href="/admin/roles" className="mb-2 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600">
-          <ArrowLeft className="h-4 w-4" /> Roles
-        </Link>
-        <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Edit Role</h1>
-        <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-500">{role.name}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Edit Role</h1>
+          <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-slate-500">{role.name}</p>
+        </div>
+        <BackButton href="/admin/roles" />
       </div>
 
       <form onSubmit={saveRole} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

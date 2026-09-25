@@ -20,7 +20,7 @@ export default function PendingSalesPage() {
   const lineLabel = (line: any) => {
     const item = catalog.find((entry: any) => entry.id === line.itemId);
     const name = item ? formatItemChoiceLabel(item, currentLocation?.id) : "Medicine";
-    return `${line.qty} × ${name}`;
+    return `${line.qty} × ${name}${item?.requiresPrescription ? " · Rx" : ""}`;
   };
 
   const checkout = async (voucher: any) => {
@@ -114,7 +114,11 @@ export default function PendingSalesPage() {
                 </ul>
                 {voucher.prescriptionNumber || voucher.patientName || voucher.prescriberName ? (
                   <p className="mt-2 text-xs font-medium text-slate-500">
-                    {[voucher.prescriptionNumber, voucher.patientName, voucher.prescriberName].filter(Boolean).join(" · ")}
+                    {[
+                      voucher.prescriptionNumber ? `Prescription ${voucher.prescriptionNumber}` : "",
+                      voucher.patientName ? `Patient ${voucher.patientName}` : "",
+                      voucher.prescriberName ? `Prescriber ${voucher.prescriberName}` : "",
+                    ].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
               </div>

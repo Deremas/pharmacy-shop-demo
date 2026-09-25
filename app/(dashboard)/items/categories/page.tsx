@@ -7,7 +7,6 @@ import { useSession } from "next-auth/react";
 import {
   AlertTriangle,
   Archive,
-  ArrowLeft,
   Box,
   Edit,
   Plus,
@@ -17,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { AppModal } from "@/components/app-modal";
+import { BackButton } from "@/components/back-button";
 import { useAppData } from "@/lib/client/useAppData";
 import { formatUnitLabel, itemVariant } from "@/lib/item-display";
 import { formatCurrency } from "@/lib/utils";
@@ -182,16 +182,7 @@ function CategoriesManager() {
     return (
       <div className="space-y-6 animate-in fade-in duration-500">
         <div className="page-heading">
-          <div className="flex min-w-0 items-start gap-3">
-            <button
-              type="button"
-              onClick={() => openCategoryView("")}
-              className="mt-1 rounded-full p-2 transition-colors hover:bg-slate-100 dark:hover:bg-zinc-800"
-              aria-label="Back to categories"
-            >
-              <ArrowLeft className="h-5 w-5 text-slate-700" />
-            </button>
-            <div className="min-w-0">
+          <div className="min-w-0">
               <h1 className="truncate text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
                 {openCategory.name}
               </h1>
@@ -199,7 +190,8 @@ function CategoriesManager() {
                 {openCategory.count} item{openCategory.count === 1 ? "" : "s"} in this category
               </p>
             </div>
-          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <BackButton onClick={() => openCategoryView("")} />
           {selectedCategory && canManage ? (
             <div className="flex items-center gap-2">
               <button
@@ -229,6 +221,7 @@ function CategoriesManager() {
               ) : null}
             </div>
           ) : null}
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from "react";
 import {
-  ArrowLeft,
   Save,
   Trash2,
   X,
@@ -19,6 +18,8 @@ import { NumericInput } from "@/components/numeric-input";
 import { cn, formatNumberWithCommas } from "@/lib/utils";
 import { SearchableSelect } from "@/components/searchable-select";
 import { ItemCodeBox } from "@/components/code-scanner";
+import { BackButton } from "@/components/back-button";
+import { PrescriptionFields } from "@/components/prescription-fields";
 import { findItemByScan } from "@/lib/pack-scan";
 import { AppModal } from "@/components/app-modal";
 import { formatItemChoiceLabel, formatUnitLabel, itemSelectOption } from "@/lib/item-display";
@@ -68,6 +69,9 @@ type SaleDraft = {
   selectedBankId: string;
   cashPaid: number;
   bankPaid: number;
+  prescriptionNumber: string;
+  patientName: string;
+  prescriberName: string;
 };
 
 const emptySaleDraft = (): SaleDraft => ({
@@ -78,6 +82,9 @@ const emptySaleDraft = (): SaleDraft => ({
   selectedBankId: "",
   cashPaid: 0,
   bankPaid: 0,
+  prescriptionNumber: "",
+  patientName: "",
+  prescriberName: "",
 });
 
 export default function NewSalePage() {
@@ -111,6 +118,12 @@ export default function NewSalePage() {
   const setSelectedBankId = updateDraftField(setDraft, "selectedBankId");
   const setCashPaid = updateDraftField(setDraft, "cashPaid");
   const setBankPaid = updateDraftField(setDraft, "bankPaid");
+  const prescriptionNumber = draft.prescriptionNumber || "";
+  const patientName = draft.patientName || "";
+  const prescriberName = draft.prescriberName || "";
+  const setPrescriptionNumber = updateDraftField(setDraft, "prescriptionNumber");
+  const setPatientName = updateDraftField(setDraft, "patientName");
+  const setPrescriberName = updateDraftField(setDraft, "prescriberName");
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -119,6 +132,13 @@ export default function NewSalePage() {
     if (!selectedLocationId) return [];
     return items.filter((i) => i.locationId === selectedLocationId);
   }, [items, selectedLocationId]);
+  const lineNeedsPrescription = (itemId: string) => {
+    if (!itemId) return false;
+    const product = products.find((entry) => entry.id === itemId);
+    const stock = locationItems.find((entry) => entry.id === itemId);
+    return Boolean(product?.requiresPrescription || stock?.requiresPrescription);
+  };
+  const prescriptionSale = lines.some((line) => lineNeedsPrescription(line.itemId));
   const bankOptions = useMemo(() => bankAccountsOnly(bankAccounts), [bankAccounts]);
 
   // Modals state
@@ -131,9 +151,6 @@ export default function NewSalePage() {
     email: "",
   });
   const [saving, setSaving] = useState(false);
-  const [prescriptionNumber, setPrescriptionNumber] = useState("");
-  const [patientName, setPatientName] = useState("");
-  const [prescriberName, setPrescriberName] = useState("");
 
   React.useEffect(() => {
     setMounted(true);
@@ -358,6 +375,11 @@ export default function NewSalePage() {
       creditAmount = Math.max(0, totals.total - cashAmount - bankAmount);
     }
 
+    if (prescriptionSale && !prescriptionNumber.trim()) {
+      toast.error("This sale includes a prescription medicine. Enter the prescription number.");
+      return;
+    }
+
     if (mode === "COMPLETE") {
       if (needsBankAccount(paymentMethod, bankPaid) && !selectedBankId) {
         toast.error("Select the bank account for this bank amount.");
@@ -383,9 +405,9 @@ export default function NewSalePage() {
       bankAccountId: needsBankAccount(paymentMethod, bankAmount) ? selectedBankId : undefined,
       submitMode: mode,
       allowBelowCost,
-      prescriptionNumber,
-      patientName,
-      prescriberName,
+      prescriptionNumber: prescriptionSale ? prescriptionNumber.trim() : "",
+      patientName: prescriptionSale ? patientName.trim() : "",
+      prescriberName: prescriptionSale ? prescriberName.trim() : "",
       items: lines.map((line) => ({
         id: line.id,
         itemId: line.itemId,
@@ -431,15 +453,8 @@ export default function NewSalePage() {
   return (
     <div className="relative mx-auto flex min-h-full max-w-5xl flex-col animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex-1 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleCancel}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <div>
+      <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               New Sale
             </h1>
@@ -447,7 +462,7 @@ export default function NewSalePage() {
               Add the medicines here. Save sale takes the money now. Send to cashier holds the stock until the cashier is paid.
             </p>
           </div>
-        </div>
+          <BackButton onClick={handleCancel} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -547,6 +562,9 @@ export default function NewSalePage() {
                             ),
                           )}
                       />
+                      <p className="mt-0.5 h-3 text-[9px] font-black uppercase tracking-widest text-indigo-600">
+                        {lineNeedsPrescription(line.itemId) ? "Rx" : ""}
+                      </p>
                     </div>
                     <div className="min-w-0">
                       <NumericInput
@@ -781,11 +799,16 @@ export default function NewSalePage() {
       </div>
       </div>
 
-      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-3">
-        <input value={prescriptionNumber} onChange={(event) => setPrescriptionNumber(event.target.value)} placeholder="Prescription number" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none dark:border-zinc-700 dark:bg-zinc-950" />
-        <input value={patientName} onChange={(event) => setPatientName(event.target.value)} placeholder="Patient name" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none dark:border-zinc-700 dark:bg-zinc-950" />
-        <input value={prescriberName} onChange={(event) => setPrescriberName(event.target.value)} placeholder="Prescriber" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none dark:border-zinc-700 dark:bg-zinc-950" />
-      </div>
+      {prescriptionSale ? (
+        <PrescriptionFields
+          prescriptionNumber={prescriptionNumber}
+          patientName={patientName}
+          prescriberName={prescriberName}
+          onPrescriptionNumber={setPrescriptionNumber}
+          onPatientName={setPatientName}
+          onPrescriberName={setPrescriberName}
+        />
+      ) : null}
 
       <div className="mt-auto flex flex-col gap-3 border-t border-slate-200 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-zinc-800">
           <p className="text-xs font-medium text-slate-500">

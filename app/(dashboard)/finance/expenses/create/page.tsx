@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Wallet, Banknote, ChevronDown, X } from "lucide-react";
+import { Wallet, Banknote, ChevronDown, X } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 import { AppModal } from "@/components/app-modal";
 import { NumericInput } from "@/components/numeric-input";
 import { cn } from "@/lib/utils";
@@ -82,10 +83,7 @@ export default function CreateExpensePage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="page-heading">
-        <div>
-          <Link href="/finance/expenses" className="mb-2 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-rose-600">
-            <ArrowLeft className="h-4 w-4" /> Expenses
-          </Link>
+        <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl">
             <Wallet className="h-6 w-6 text-rose-500" />
             Record Expense
@@ -94,6 +92,7 @@ export default function CreateExpensePage() {
             {currentLocation?.name || "Current business"}
           </p>
         </div>
+        <BackButton href="/finance/expenses" />
       </div>
 
       <div className="mx-auto max-w-2xl space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

@@ -3,7 +3,8 @@
 import React, { useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, AlertCircle, Landmark } from "lucide-react";
+import { AlertCircle, Landmark } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 import { NumericInput } from "@/components/numeric-input";
 import { formatCurrency } from "@/lib/utils";
 import { useAppData } from "@/lib/client/useAppData";
@@ -85,15 +86,15 @@ function SupplierPayForm() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-      <div>
-        <Link href="/suppliers/debts" className="mb-2 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-indigo-600">
-          <ArrowLeft className="h-4 w-4" /> Supplier Debts
-        </Link>
-        <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          <Landmark className="h-7 w-7 text-indigo-600" />
-          Record Supplier Payment
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">Settle outstanding payables.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <Landmark className="h-7 w-7 text-indigo-600" />
+            Record Supplier Payment
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">Settle outstanding payables.</p>
+        </div>
+        <BackButton href="/suppliers/debts" />
       </div>
 
       <form onSubmit={handleSubmit} className="mx-auto max-w-xl space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import React, { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Calendar, CreditCard, MapPin, ReceiptText, Truck } from "lucide-react";
+import { Calendar, CreditCard, MapPin, ReceiptText, Truck } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 
 import { useAppData } from "@/lib/client/useAppData";
 import { useCan } from "@/lib/client/useCan";
@@ -45,21 +46,17 @@ export default function PurchaseDetailPage() {
     <div className="mx-auto max-w-6xl space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="page-heading">
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-600">Purchase Details</p>
             <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">{purchase.id}</h1>
           </div>
         </div>
-        <Link href="/purchases" className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-          Purchase list
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <BackButton onClick={() => router.back()} />
+          <Link href="/purchases" className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+            Purchase list
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">

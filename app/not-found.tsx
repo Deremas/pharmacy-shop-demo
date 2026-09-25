@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Home, SearchX } from "lucide-react";
+import { Home, SearchX } from "lucide-react";
 
 export default function NotFound() {
   const router = useRouter();
@@ -44,7 +44,6 @@ export default function NotFound() {
                   onClick={() => router.back()}
                   className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 text-sm font-black uppercase tracking-[0.16em] text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-[0.98] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
                 >
-                  <ArrowLeft className="h-5 w-5" />
                   Back
                 </button>
 

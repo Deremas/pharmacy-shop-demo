@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Truck, ArrowLeft, Save, Plus, Search, User, Package, Trash2, X, PlusCircle, ChevronDown } from "lucide-react";
+import { Truck, Save, Plus, Search, User, Package, Trash2, X, PlusCircle, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAppData } from "@/lib/client/useAppData";
 import { NumericInput } from "@/components/numeric-input";
@@ -22,6 +22,7 @@ import { updateDraftField, useBusinessDraft } from "@/lib/client/useBusinessDraf
 import { eatTodayYmd, parseBusinessDateInput } from "@/lib/eat-date";
 import { expiryInputWarning, openBatches, parseReceiptBatch } from "@/lib/inventory/receipt-batch";
 import { ReceiptBatchFields } from "@/components/receipt-batch-fields";
+import { BackButton } from "@/components/back-button";
 
 const NO_SUPPLIER_ID = "__NO_SUPPLIER__";
 
@@ -386,19 +387,12 @@ export default function NewPurchasePage() {
   return (
     <div className="relative mx-auto flex min-h-full max-w-5xl flex-col animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex-1 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={handleCancel}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <div>
+      <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">New Purchase</h1>
             <p className="text-slate-500 mt-1 uppercase text-[10px] font-black tracking-widest">Stock Procurement Entry</p>
           </div>
-        </div>
+          <BackButton onClick={handleCancel} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

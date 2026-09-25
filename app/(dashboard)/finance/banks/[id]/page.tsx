@@ -3,7 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Calendar, Edit3, Landmark, MapPin, ReceiptText, Trash2, X } from "lucide-react";
+import { ArrowUpRight, Calendar, Edit3, Landmark, MapPin, ReceiptText, Trash2, X } from "lucide-react";
+import { BackButton } from "@/components/back-button";
 import { buildLedgerTransactions, movementSummary } from "@/lib/finance-ledger";
 import { AppModal } from "@/components/app-modal";
 import { NumericInput } from "@/components/numeric-input";
@@ -39,18 +40,9 @@ export default function BankAccountDetailsPage() {
 
   if (!account) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
-        <button
-          type="button"
-          onClick={() => router.push("/finance/banks")}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-600 shadow-sm"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Accounts
-        </button>
-        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <p className="text-sm font-black uppercase tracking-widest text-slate-500">Account not found</p>
-        </div>
+      <div className="mx-auto flex max-w-3xl items-start justify-between gap-3">
+        <h1 className="text-2xl font-black text-slate-900 dark:text-white">Account not found</h1>
+        <BackButton href="/finance/banks" />
       </div>
     );
   }
@@ -93,14 +85,6 @@ export default function BankAccountDetailsPage() {
     <div className="mx-auto max-w-6xl space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="page-heading">
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => router.push("/finance/banks")}
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-            aria-label="Back to bank accounts"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-600">Account Details</p>
             <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-white">{account.displayName}</h1>
@@ -108,6 +92,7 @@ export default function BankAccountDetailsPage() {
           </div>
         </div>
         <div className="flex gap-3">
+          <BackButton href="/finance/banks" />
           <button
             type="button"
             onClick={() => setEditing(true)}
