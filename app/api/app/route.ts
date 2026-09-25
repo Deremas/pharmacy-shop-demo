@@ -1803,7 +1803,33 @@ export async function POST(request: NextRequest) {
       const delta = quantity - beforeQuantity;
 
       let adjustedBatchId: string | undefined;
-      if (delta > 0) {
+      const requestedBatchId = String(payload.inventoryBatchId || "").trim();
+      if (requestedBatchId && requestedBatchId !== "new") {
+        const batch = await tx.inventoryBatch.findFirst({
+          where: { id: requestedBatchId, itemId: payload.itemId, locationId: payload.locationId, status: "ACTIVE" },
+        });
+        if (!batch) throw new Error("Choose a batch that is still open at this location.");
+        if (delta < 0) {
+          const decrease = Math.abs(delta);
+          if (batch.remainingQuantity < decrease) {
+            throw new Error(`Batch ${batch.batchCode || ""} only has ${batch.remainingQuantity} left.`);
+          }
+          const reduced = await tx.inventoryBatch.updateMany({
+            where: { id: batch.id, remainingQuantity: { gte: decrease } },
+            data: { remainingQuantity: { decrement: decrease } },
+          });
+          if (reduced.count !== 1) throw new Error("Stock changed while the adjustment was being processed. Please retry.");
+        } else if (delta > 0) {
+          await tx.inventoryBatch.update({
+            where: { id: batch.id },
+            data: {
+              quantityIn: { increment: delta },
+              remainingQuantity: { increment: delta },
+            },
+          });
+        }
+        adjustedBatchId = batch.id;
+      } else if (delta > 0) {
         const receipt = parseReceiptBatch(payload);
         const latestBatch = await tx.inventoryBatch.findFirst({
           where: { itemId: payload.itemId, locationId: payload.locationId },
@@ -1844,6 +1870,10 @@ export async function POST(request: NextRequest) {
             });
         adjustedBatchId = batch.id;
       } else if (delta < 0) {
+        const openCount = await tx.inventoryBatch.count({
+          where: { itemId: payload.itemId, locationId: payload.locationId, remainingQuantity: { gt: 0 }, status: "ACTIVE" },
+        });
+        if (openCount > 1) throw new Error("Choose which batch this adjustment applies to.");
         let remainingDecrease = Math.abs(delta);
         const batchesToReduce = await tx.inventoryBatch.findMany({
           where: { itemId: payload.itemId, locationId: payload.locationId, remainingQuantity: { gt: 0 } },

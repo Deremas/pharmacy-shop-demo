@@ -21,11 +21,13 @@ export function ReceiptBatchFields({
   existingBatches = [],
   onChange,
   compact = false,
+  part,
 }: {
   value: ReceiptBatchValue;
   existingBatches?: ExistingBatch[];
   onChange: (next: ReceiptBatchValue) => void;
   compact?: boolean;
+  part?: "batch" | "expiry";
 }) {
   const warning = value.noExpiry ? "" : expiryInputWarning(value.expireDate);
   const usingExisting = value.batchChoice !== "new" && existingBatches.some((batch) => batch.id === value.batchChoice);
@@ -45,8 +47,8 @@ export function ReceiptBatchFields({
     });
   };
 
-  return (
-    <div className={compact ? "space-y-1.5" : "space-y-3"}>
+  const batchFields = (
+    <div className="min-w-0 space-y-1.5">
       {existingBatches.length > 0 ? (
         <label className="block">
           {compact ? null : <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Open batch</span>}
@@ -92,7 +94,11 @@ export function ReceiptBatchFields({
           ) : null}
         </label>
       )}
+    </div>
+  );
 
+  const expiryFields = (
+    <div className="min-w-0 space-y-1.5">
       <label className="block">
         {compact ? null : <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Expiry</span>}
         <input
@@ -111,10 +117,19 @@ export function ReceiptBatchFields({
             checked={value.noExpiry}
             onChange={(event) => onChange({ ...value, noExpiry: event.target.checked, expireDate: event.target.checked ? "" : value.expireDate })}
           />
-          No expiry on this pack
+          {compact || part ? "No expiry" : "No expiry on this pack"}
         </label>
       )}
       {warning ? <p className="text-[10px] font-bold leading-4 text-amber-600">{warning}</p> : null}
+    </div>
+  );
+
+  if (part === "batch") return batchFields;
+  if (part === "expiry") return expiryFields;
+  return (
+    <div className={compact ? "space-y-1.5" : "space-y-3"}>
+      {batchFields}
+      {expiryFields}
     </div>
   );
 }

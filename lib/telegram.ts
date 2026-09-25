@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   BUSINESSES,
+  isStoreLocationId,
   isTenantBusiness,
   stockLocationLabel,
   tenantBusinessId,
@@ -626,6 +627,41 @@ function money(n: number) {
   return formatEtb(Number(n || 0));
 }
 
+const DAILY_OVERVIEW_SETTING_KEY = "telegram.dailyOverview";
+
+/** One report per pharmacy per business day, even if cron and the local timer both fire. */
+async function claimDailyOverview(locationId: string, label: string) {
+  const where = { locationId_key: { locationId, key: DAILY_OVERVIEW_SETTING_KEY } };
+  const existing = await prisma.setting.findUnique({ where, select: { value: true } });
+  if (existing?.value === label) return false;
+
+  if (!existing) {
+    try {
+      await prisma.setting.create({
+        data: { locationId, key: DAILY_OVERVIEW_SETTING_KEY, value: label },
+      });
+      return true;
+    } catch (error) {
+      const again = await prisma.setting.findUnique({ where, select: { value: true } });
+      if (again?.value === label) return false;
+      throw error;
+    }
+  }
+
+  const updated = await prisma.setting.updateMany({
+    where: { locationId, key: DAILY_OVERVIEW_SETTING_KEY, NOT: { value: label } },
+    data: { value: label },
+  });
+  return updated.count === 1;
+}
+
+async function releaseDailyOverview(locationId: string, label: string) {
+  await prisma.setting.updateMany({
+    where: { locationId, key: DAILY_OVERVIEW_SETTING_KEY, value: label },
+    data: { value: "" },
+  });
+}
+
 export async function sendDailyOverviews(now = new Date()) {
   // 00:00 → 22:00 EAT so the 10pm cron includes all work done that day up to report time.
   const { start, end, label } = eatReportBounds(now);
@@ -635,8 +671,13 @@ export async function sendDailyOverviews(now = new Date()) {
     orderBy: { name: "asc" },
   });
 
-  // Always cover catalog businesses even if a DB row is missing/mis-typed.
-  const byId = new Map(businesses.map((business) => [business.id, business]));
+  // One row per pharmacy. Counter and store bins share that pharmacy and must not send a second report.
+  const byId = new Map<string, { id: string; name: string }>();
+  for (const business of businesses) {
+    const id = tenantBusinessId(business.id);
+    if (!id || isStoreLocationId(id)) continue;
+    if (!byId.has(id)) byId.set(id, { id, name: business.name });
+  }
   for (const entry of BUSINESSES) {
     if (!byId.has(entry.id)) byId.set(entry.id, { id: entry.id, name: entry.name });
   }
@@ -645,6 +686,15 @@ export async function sendDailyOverviews(now = new Date()) {
   const results: Array<{ businessId: string; name: string; sent: boolean; error?: string; skipped?: string }> = [];
 
   for (const business of targets) {
+    const location = await prisma.location.findUnique({
+      where: { id: business.id },
+      select: { id: true },
+    });
+    if (!location) {
+      results.push({ businessId: business.id, name: business.name, sent: false, skipped: "Pharmacy is not in the database." });
+      continue;
+    }
+
     const bins = [business.id, `${business.id}-store`];
     // Match business date OR createdAt so stale saleDate drafts still count on the day they were done.
     const saleWhere = {
@@ -977,15 +1027,28 @@ export async function sendDailyOverviews(now = new Date()) {
       financeLines.push(tgTitle("🏦", "BANKS"), ...bankAccountLines);
     }
 
-    const result = await notifyBusiness(business.id, [
-      tgTitle("📊", `DAILY · ${label}`),
-      ...sectionWithItems("🟢", `SALES · ${salesAgg._count._all} · ${money(salesTotal)}`, saleLines),
-      ...sectionWithItems("🔵", `PURCHASES · ${purchaseAgg._count._all} · ${money(purchaseTotal)}`, purchaseLines),
-      ...sectionWithItems("🔄", `TRANSFERS · ${transferCount}`, transferLines),
-      ...sectionWithItems("🛠", `ADJUSTMENTS · ${adjustmentCount}`, adjustmentLines),
-      ...sectionWithItems("🗑", `DAMAGE · ${damageCount}`, damageLines),
-      ...financeLines,
-    ]);
+    const claimed = await claimDailyOverview(business.id, label);
+    if (!claimed) {
+      results.push({ businessId: business.id, name: business.name, sent: false, skipped: "Already sent for this day." });
+      continue;
+    }
+
+    let result: Awaited<ReturnType<typeof notifyBusiness>>;
+    try {
+      result = await notifyBusiness(business.id, [
+        tgTitle("📊", `DAILY · ${label}`),
+        ...sectionWithItems("🟢", `SALES · ${salesAgg._count._all} · ${money(salesTotal)}`, saleLines),
+        ...sectionWithItems("🔵", `PURCHASES · ${purchaseAgg._count._all} · ${money(purchaseTotal)}`, purchaseLines),
+        ...sectionWithItems("🔄", `TRANSFERS · ${transferCount}`, transferLines),
+        ...sectionWithItems("🛠", `ADJUSTMENTS · ${adjustmentCount}`, adjustmentLines),
+        ...sectionWithItems("🗑", `DAMAGE · ${damageCount}`, damageLines),
+        ...financeLines,
+      ]);
+    } catch (error) {
+      await releaseDailyOverview(business.id, label);
+      throw error;
+    }
+    if (!result.ok) await releaseDailyOverview(business.id, label);
     results.push({
       businessId: business.id,
       name: business.name,
@@ -1003,6 +1066,8 @@ let lastDailyOverviewLabel = "";
 
 /** Local/dev fallback: Vercel cron does not run on localhost. */
 export function startDailyOverviewScheduler() {
+  // Production uses the Vercel cron. Starting this timer there sends the 10pm report a second time.
+  if (process.env.VERCEL) return;
   if (dailySchedulerStarted) return;
   if (typeof setInterval !== "function") return;
   dailySchedulerStarted = true;

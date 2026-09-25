@@ -4,7 +4,7 @@ import React from "react";
 import { AppModal } from "@/components/app-modal";
 import { NumericInput } from "@/components/numeric-input";
 import { StockReasonSelect } from "@/components/stock-reason-select";
-import { ChevronDown, Database, Edit, Package, PlusCircle, Search, ShieldCheck, SlidersHorizontal, Warehouse, X } from "lucide-react";
+import { ChevronDown, Database, Edit, Layers, Package, PlusCircle, Search, ShieldCheck, SlidersHorizontal, Warehouse, X } from "lucide-react";
 import { useAppData } from "@/lib/client/useAppData";
 import { matchesStockView } from "@/lib/businesses";
 import { formatItemChoiceLabel, itemVariant } from "@/lib/item-display";
@@ -41,6 +41,7 @@ export function StockView({
   const [adjustQuantity, setAdjustQuantity] = React.useState("");
   const [adjustReason, setAdjustReason] = React.useState("");
   const [adjustReceipt, setAdjustReceipt] = React.useState<ReceiptBatchValue>(emptyReceipt);
+  const [adjustBatchId, setAdjustBatchId] = React.useState("new");
   const [adjustError, setAdjustError] = React.useState("");
   const [batchItem, setBatchItem] = React.useState<any>(null);
   const [stockEntryItem, setStockEntryItem] = React.useState<any>(null);
@@ -119,6 +120,8 @@ export function StockView({
     setAdjustQuantity(String(item.stock || 0));
     setAdjustReason("");
     setAdjustReceipt(emptyReceipt());
+    const batches = openBatches(inventoryBatches, item.id, item.locationId);
+    setAdjustBatchId(soonestBatch(batches)?.id || "new");
     setAdjustError("");
   };
 
@@ -127,14 +130,30 @@ export function StockView({
     if (!adjustingItem) return;
     setAdjustError("");
     const nextQuantity = Number(adjustQuantity);
-    const increasing = nextQuantity > Number(adjustingItem.stock || 0);
-    if (increasing) {
-      try {
-        parseReceiptBatch(adjustReceipt);
-      } catch (error) {
-        setAdjustError(error instanceof Error ? error.message : "Enter the batch for the added quantity.");
+    const currentQuantity = Number(adjustingItem.stock || 0);
+    const delta = nextQuantity - currentQuantity;
+    const batches = openBatches(inventoryBatches, adjustingItem.id, adjustingItem.locationId);
+    const selectedBatch = batches.find((batch) => batch.id === adjustBatchId);
+    if (delta !== 0 && batches.length > 0 && !adjustBatchId) {
+      setAdjustError("Choose the batch this adjustment applies to.");
+      return;
+    }
+    if (adjustBatchId === "new") {
+      if (delta < 0) {
+        setAdjustError("A new batch can only receive added stock. Choose an existing batch to reduce.");
         return;
       }
+      if (delta > 0) {
+        try {
+          parseReceiptBatch(adjustReceipt);
+        } catch (error) {
+          setAdjustError(error instanceof Error ? error.message : "Enter the batch for the added quantity.");
+          return;
+        }
+      }
+    } else if (delta < 0 && selectedBatch && Math.abs(delta) > Number(selectedBatch.remainingQuantity || 0)) {
+      setAdjustError(`Batch ${selectedBatch.batchCode || ""} only has ${Number(selectedBatch.remainingQuantity || 0)} left.`);
+      return;
     }
     try {
       await adjustStock({
@@ -142,7 +161,8 @@ export function StockView({
         locationId: adjustingItem.locationId,
         quantity: nextQuantity,
         reason: adjustReason,
-        ...(increasing ? adjustReceipt : {}),
+        inventoryBatchId: adjustBatchId,
+        ...(adjustBatchId === "new" ? adjustReceipt : {}),
       });
       setAdjustingItem(null);
     } catch (error) {
@@ -260,7 +280,8 @@ export function StockView({
                 <th className="px-6 py-4 text-right">Buying Price</th>
                 <th className="px-6 py-4 text-right">Unit Selling</th>
                 <th className="px-6 py-4 text-center">Current Qty</th>
-                <th className="px-6 py-4 text-left">Nearest expiry</th>
+                <th className="whitespace-nowrap px-4 py-4 text-left">Nearest expiry</th>
+                <th className="whitespace-nowrap px-4 py-4 text-left">Batches</th>
                 <th className="px-6 py-4 text-right">Total Value</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 {canAdjustStock && <th className="px-6 py-4 text-right">Action</th>}
@@ -309,15 +330,26 @@ export function StockView({
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center text-xs font-black text-indigo-600 dark:text-indigo-400">{item.stock}</td>
-                    <td className="px-6 py-4">
+                    <td className="whitespace-nowrap px-4 py-4 text-xs font-black">
+                      {(() => {
+                        const soonest = soonestBatch(openBatches(inventoryBatches, item.id, item.locationId));
+                        if (!soonest) return <span className="font-bold text-slate-400">—</span>;
+                        return <span className={expiryTone(soonest.expireDate)}>{formatExpiryDay(soonest.expireDate)}</span>;
+                      })()}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4">
                       {(() => {
                         const batches = openBatches(inventoryBatches, item.id, item.locationId);
-                        const soonest = soonestBatch(batches);
-                        if (!soonest) return <span className="text-xs font-bold text-slate-400">—</span>;
+                        if (batches.length === 0) return <span className="text-xs font-bold text-slate-400">—</span>;
                         return (
-                          <button type="button" onClick={() => setBatchItem(item)} className="text-left">
-                            <span className={cn("block text-xs font-black", expiryTone(soonest.expireDate))}>{formatExpiryDay(soonest.expireDate)}</span>
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600">{batches.length} batch{batches.length === 1 ? "" : "es"}</span>
+                          <button
+                            type="button"
+                            onClick={() => setBatchItem(item)}
+                            title="Open the batch list"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300"
+                          >
+                            <Layers className="h-3.5 w-3.5" />
+                            {batches.length === 1 ? "1 batch" : `${batches.length} batches`}
                           </button>
                         );
                       })()}
@@ -359,7 +391,7 @@ export function StockView({
               })}
               {filteredStock.length === 0 ? (
                 <tr>
-                  <td colSpan={canAdjustStock ? 11 : 10} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
+                  <td colSpan={canAdjustStock ? 12 : 11} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
                     No stock records found
                   </td>
                 </tr>
@@ -369,7 +401,7 @@ export function StockView({
         </div>
       </div>
 
-      <AppModal open={Boolean(adjustingItem)} onClose={() => setAdjustingItem(null)} contentClassName="max-w-lg" labelledBy="stock-adjust-title">
+      <AppModal open={Boolean(adjustingItem)} onClose={() => setAdjustingItem(null)} contentClassName="max-w-xl" labelledBy="stock-adjust-title">
           <form onSubmit={submitAdjustment} className="p-6">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
@@ -398,6 +430,46 @@ export function StockView({
               </label>
             </div>
 
+            {(() => {
+              const batches = openBatches(inventoryBatches, adjustingItem?.id, adjustingItem?.locationId);
+              const selected = batches.find((batch) => batch.id === adjustBatchId);
+              const delta = Number(adjustQuantity) - Number(adjustingItem?.stock || 0);
+              return (
+                <div className="mt-4 space-y-3">
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Apply to batch</span>
+                    <select
+                      aria-label="Apply to batch"
+                      value={batches.some((batch) => batch.id === adjustBatchId) ? adjustBatchId : "new"}
+                      onChange={(event) => setAdjustBatchId(event.target.value)}
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950"
+                    >
+                      {batches.map((batch) => (
+                        <option key={batch.id} value={batch.id}>
+                          {batch.batchCode || "Batch"} · {formatExpiryDay(batch.expireDate)} · {Number(batch.remainingQuantity || 0)} left
+                        </option>
+                      ))}
+                      <option value="new">New batch</option>
+                    </select>
+                  </label>
+                  <p className="text-[11px] font-semibold leading-5 text-slate-500">
+                    {selected && delta > 0
+                      ? `Adds ${delta} to ${selected.batchCode || "this batch"}. Other batches stay unchanged.`
+                      : selected && delta < 0
+                        ? `Removes ${Math.abs(delta)} from ${selected.batchCode || "this batch"} (${Number(selected.remainingQuantity || 0)} left). Other batches stay unchanged.`
+                        : adjustBatchId === "new"
+                          ? "Added units are received as a new batch with their own number and expiry."
+                          : "The correction is applied to the selected batch only."}
+                  </p>
+                  {adjustBatchId === "new" && delta > 0 ? (
+                    <div className="rounded-xl border border-slate-200 p-4 dark:border-zinc-800">
+                      <ReceiptBatchFields value={adjustReceipt} onChange={setAdjustReceipt} />
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
+
             <div className="mt-4">
               <StockReasonSelect
                 presets={ADJUSTMENT_REASON_PRESETS}
@@ -407,17 +479,6 @@ export function StockView({
                 customPlaceholder="Describe the stock adjustment reason..."
               />
             </div>
-            {Number(adjustQuantity) > Number(adjustingItem?.stock || 0) ? (
-              <div className="mt-4 rounded-xl border border-slate-200 p-4 dark:border-zinc-800">
-                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Batch for the added quantity</p>
-                <ReceiptBatchFields
-                  value={adjustReceipt}
-                  existingBatches={openBatches(inventoryBatches, adjustingItem?.id, adjustingItem?.locationId)}
-                  onChange={setAdjustReceipt}
-                />
-              </div>
-            ) : null}
-
             {adjustError && <p className="mt-3 rounded-xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600 dark:bg-rose-950/30">{adjustError}</p>}
 
             <div className="mt-6 flex justify-end gap-3">

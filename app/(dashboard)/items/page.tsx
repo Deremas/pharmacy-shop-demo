@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle, ChevronDown, Edit, Plus, Search, Trash } from "lucide-react";
+import { AlertTriangle, ChevronDown, Edit, Layers, Plus, Search, Trash } from "lucide-react";
 import Link from "next/link";
 import { useAppData } from "@/lib/client/useAppData";
 import { useCan } from "@/lib/client/useCan";
@@ -108,7 +108,8 @@ export default function ItemList() {
                 <th className="whitespace-nowrap px-6 py-5">Unit</th>
                 <th className="whitespace-nowrap px-6 py-5">Active Stock</th>
                 <th className="whitespace-nowrap px-6 py-5">Total Stock</th>
-                <th className="whitespace-nowrap px-6 py-5">Nearest expiry</th>
+                <th className="whitespace-nowrap px-4 py-5">Nearest expiry</th>
+                <th className="whitespace-nowrap px-4 py-5">Batches</th>
                 <th className="whitespace-nowrap px-6 py-5">Selling Price</th>
                 <th className="whitespace-nowrap px-6 py-5 text-right">Actions</th>
               </tr>
@@ -135,11 +136,19 @@ export default function ItemList() {
                       <span className={cn(activeStock <= Number(item.lowStockAlert || 10) ? "text-rose-600" : "text-slate-900 dark:text-white")}>{activeStock} {formatUnitLabel(item)}</span>
                     </td>
                     <td className="px-6 py-5 text-sm font-black text-slate-900 dark:text-white">{totalStock} {formatUnitLabel(item)}</td>
-                    <td className="px-6 py-5">
-                      {soonest ? (
-                        <button type="button" onClick={() => setBatchItem(item)} className="text-left">
-                          <span className={cn("block text-xs font-black", expiryTone(soonest.expireDate))}>{formatExpiryDay(soonest.expireDate)}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600">{itemBatches.length} batch{itemBatches.length === 1 ? "" : "es"}</span>
+                    <td className="whitespace-nowrap px-4 py-5 text-xs font-black">
+                      {soonest ? <span className={expiryTone(soonest.expireDate)}>{formatExpiryDay(soonest.expireDate)}</span> : <span className="font-bold text-slate-400">—</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-5">
+                      {itemBatches.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setBatchItem(item)}
+                          title="Open the batch list"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300"
+                        >
+                          <Layers className="h-3.5 w-3.5" />
+                          {itemBatches.length === 1 ? "1 batch" : `${itemBatches.length} batches`}
                         </button>
                       ) : (
                         <span className="text-xs font-bold text-slate-400">—</span>
@@ -169,7 +178,7 @@ export default function ItemList() {
               })}
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
+                  <td colSpan={10} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
                     No items found
                   </td>
                 </tr>

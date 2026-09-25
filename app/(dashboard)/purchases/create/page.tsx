@@ -37,7 +37,7 @@ interface PurchaseLine {
 }
 
 const PURCHASE_LINE_GRID =
-  "grid grid-cols-[minmax(12rem,1.4fr)_minmax(13rem,1.1fr)_4.5rem_minmax(6.5rem,1fr)_minmax(6.5rem,1fr)_minmax(6rem,1fr)_2.5rem] gap-3";
+  "grid grid-cols-[minmax(12rem,1.4fr)_minmax(11rem,1fr)_9.5rem_4.5rem_minmax(6.5rem,1fr)_minmax(6.5rem,1fr)_minmax(6rem,1fr)_2.5rem] gap-3";
 
 const emptyPurchaseLine = (): PurchaseLine => ({
   id: Math.random().toString(36).slice(2, 11),
@@ -429,10 +429,11 @@ export default function NewPurchasePage() {
             </div>
             
             <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
-              <div className="min-w-[58rem]">
+              <div className="min-w-[68rem]">
               <div className={cn(PURCHASE_LINE_GRID, "items-end px-3 pb-1")}>
                 <div className={lineHeaderClass}>Item</div>
-                <div className={lineHeaderClass}>Batch and expiry</div>
+                <div className={lineHeaderClass}>Batch</div>
+                <div className={lineHeaderClass}>Expiry</div>
                 <div className={lineHeaderClass}>Qty</div>
                 <div className={lineHeaderClass}>Buying Price</div>
                 <div className={lineHeaderClass}>Selling Price</div>
@@ -461,6 +462,21 @@ export default function NewPurchasePage() {
                     </div>
                     <ReceiptBatchFields
                       compact
+                      part="batch"
+                      value={{
+                        batchChoice: line.batchChoice || "new",
+                        batchCode: line.batchCode || "",
+                        expireDate: line.expireDate || "",
+                        noExpiry: Boolean(line.noExpiry),
+                      }}
+                      existingBatches={stockLocationId ? openBatches(inventoryBatches, line.itemId, stockLocationId) : []}
+                      onChange={(next) => {
+                        setLines(lines.map((entry) => (entry.id === line.id ? { ...entry, ...next } : entry)));
+                      }}
+                    />
+                    <ReceiptBatchFields
+                      compact
+                      part="expiry"
                       value={{
                         batchChoice: line.batchChoice || "new",
                         batchCode: line.batchCode || "",
