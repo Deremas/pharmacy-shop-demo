@@ -11,7 +11,9 @@ import { createSale, deleteSale, completePendingSale, cancelPendingSale } from "
 import { createPurchaseReturn, createSaleReturn, voidSale } from "@/lib/actions/returns";
 import { disposeBatch } from "@/lib/actions/disposal";
 import { availableBatchQuantity, isSellableBatch } from "@/lib/inventory/fefo";
+import { assertInternalBatchCodeAvailable } from "@/lib/inventory/internal-batch-guard";
 import { parseReceiptBatch } from "@/lib/inventory/receipt-batch";
+import { cleanPackCode } from "@/lib/pack-scan";
 import { assertWholeQuantity } from "@/lib/units";
 import { createPurchase, deletePurchase } from "@/lib/actions/purchases";
 import { createTransfer } from "@/lib/actions/transfers";
@@ -46,6 +48,19 @@ function categoryDisplayName(category?: { name?: string | null } | null) {
 
 function categoryDisplayId(categoryId: string, category?: { name?: string | null } | null) {
   return isUncategorizedCategory(category) ? "" : categoryId;
+}
+
+async function packCodeTaken(locationId: string, barcode: string | null, exceptId?: string) {
+  if (!barcode) return false;
+  const taken = await prisma.item.findFirst({
+    where: {
+      locationId,
+      barcode: { equals: barcode, mode: "insensitive" },
+      ...(exceptId ? { NOT: { id: exceptId } } : {}),
+    },
+    select: { id: true },
+  });
+  return Boolean(taken);
 }
 
 function friendlyUniqueConstraintError(error: unknown) {
@@ -426,6 +441,7 @@ export async function GET() {
       unitShortName: batch.item.unit.shortName,
       unit: formatUnitLabel(batch.item.unit),
       code: batch.item.code || "",
+      barcode: batch.item.barcode || "",
       status: batch.item.isActive ? "Active" : "Inactive",
       locationId: batch.locationId,
       lowStockAlert: batch.item.lowStockAlert,
@@ -1181,11 +1197,16 @@ export async function POST(request: NextRequest) {
     if (allocated.duplicate) {
       return NextResponse.json({ ok: false, error: "Another item already uses this code." }, { status: 400 });
     }
+    const barcode = cleanPackCode(payload.barcode);
+    if (await packCodeTaken(locationId, barcode)) {
+      return NextResponse.json({ ok: false, error: "This pack code is already used by another medicine." }, { status: 400 });
+    }
     const item = await prisma.item.create({
       data: {
         locationId,
         name: payload.name,
         code: allocated.code,
+        barcode,
         categoryId: resolvedCategory.id,
         unitId: resolvedUnit.id,
         defaultBuyingPrice: asMoney(payload.buyingPrice || payload.price || 0),
@@ -1282,6 +1303,10 @@ export async function POST(request: NextRequest) {
     if (allocated.duplicate) {
       return NextResponse.json({ ok: false, error: "Another item already uses this code." }, { status: 400 });
     }
+    const barcode = cleanPackCode(payload.barcode);
+    if (await packCodeTaken(locationId, barcode, existing.id)) {
+      return NextResponse.json({ ok: false, error: "This pack code is already used by another medicine." }, { status: 400 });
+    }
 
     const sellingPrice = payload.sellingPrice ?? payload.price;
     await prisma.item.update({
@@ -1289,6 +1314,7 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         code: allocated.code,
+        barcode,
         categoryId,
         unitId: unit.id,
         defaultBuyingPrice:
@@ -1872,7 +1898,9 @@ export async function POST(request: NextRequest) {
                 sellingPrice,
               },
             })
-          : await tx.inventoryBatch.create({
+          : await (async () => {
+              await assertInternalBatchCodeAvailable(tx, receipt.batchCode);
+              return tx.inventoryBatch.create({
               data: {
                 itemId: payload.itemId,
                 locationId: payload.locationId,
@@ -1884,6 +1912,7 @@ export async function POST(request: NextRequest) {
                 expireDate: receipt.expireDate,
               },
             });
+            })();
         adjustedBatchId = batch.id;
       } else if (delta < 0) {
         const openCount = await tx.inventoryBatch.count({
@@ -2164,7 +2193,9 @@ export async function POST(request: NextRequest) {
               sellingPrice: selling,
             },
           })
-        : await tx.inventoryBatch.create({
+        : await (async () => {
+            await assertInternalBatchCodeAvailable(tx, receipt.batchCode);
+            return tx.inventoryBatch.create({
             data: {
               itemId: payload.itemId,
               locationId: payload.locationId,
@@ -2176,6 +2207,7 @@ export async function POST(request: NextRequest) {
               expireDate: receipt.expireDate,
             },
           });
+          })();
 
       await tx.item.update({
         where: { id: item.id },

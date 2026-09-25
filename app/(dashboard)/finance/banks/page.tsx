@@ -57,12 +57,13 @@ export default function BankAccountsPage() {
   const closeEditor = () => setEditingAccountId(null);
 
   const saveAccount = async () => {
+    const isMobile = formData.accountType === "MOBILE";
     const displayName = formData.displayName.trim();
-    const bankName = formData.bankName.trim();
+    const bankName = (isMobile ? displayName : formData.bankName).trim();
     const accountNumber = formData.accountNumber.trim();
     const currentBalance = Number(formData.openingBalance.replace(/,/g, "")) || 0;
 
-    if (!displayName || !bankName || !accountNumber) return;
+    if (!displayName || !accountNumber || !bankName) return;
 
     if (editingAccountId === "new") {
       await state.addBankAccount({
@@ -321,14 +322,32 @@ export default function BankAccountsPage() {
                 </select>
               </label>
             ) : null}
-            <AccountInput autoFocus label="Account Name" placeholder={formData.accountType === "MOBILE" ? "Telebirr shop" : "Main bank"} value={formData.displayName} onChange={(value) => setFormData({ ...formData, displayName: value })} />
-            <AccountInput label={formData.accountType === "MOBILE" ? "Provider" : "Bank Name"} placeholder={formData.accountType === "MOBILE" ? "Telebirr" : "BOA"} value={formData.bankName} onChange={(value) => setFormData({ ...formData, bankName: value })} />
-            <AccountInput label={formData.accountType === "MOBILE" ? "Phone / account" : "Account Number"} placeholder={formData.accountType === "MOBILE" ? "0911..." : "32456"} value={formData.accountNumber} onChange={(value) => setFormData({ ...formData, accountNumber: value })} />
+            <AccountInput
+              autoFocus
+              label="Name"
+              placeholder={formData.accountType === "MOBILE" ? "Telebirr" : "Main account"}
+              value={formData.displayName}
+              onChange={(value) => setFormData({ ...formData, displayName: value })}
+            />
+            {formData.accountType === "MOBILE" ? (
+              <AccountInput
+                label="Phone"
+                placeholder="0911 234 567"
+                value={formData.accountNumber}
+                onChange={(value) => setFormData({ ...formData, accountNumber: value })}
+              />
+            ) : (
+              <>
+                <AccountInput label="Bank" placeholder="Bank of Abyssinia" value={formData.bankName} onChange={(value) => setFormData({ ...formData, bankName: value })} />
+                <AccountInput label="Account no." placeholder="100012345678" value={formData.accountNumber} onChange={(value) => setFormData({ ...formData, accountNumber: value })} />
+              </>
+            )}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-black uppercase tracking-widest text-slate-500">Opening Balance</label>
+              <label className="text-[11px] font-black uppercase tracking-widest text-slate-500">Opening balance</label>
               <NumericInput
                 value={formData.openingBalance}
                 onValueChange={(value) => setFormData({ ...formData, openingBalance: String(value) })}
+                placeholder="0"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-900"
               />
             </div>

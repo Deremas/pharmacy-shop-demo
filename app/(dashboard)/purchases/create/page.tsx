@@ -7,12 +7,15 @@ import { useAppData } from "@/lib/client/useAppData";
 import { NumericInput } from "@/components/numeric-input";
 import { cn, formatNumberWithCommas } from "@/lib/utils";
 import { SearchableSelect } from "@/components/searchable-select";
+import { ItemCodeBox } from "@/components/code-scanner";
+import { findItemByScan } from "@/lib/pack-scan";
 import { AppModal } from "@/components/app-modal";
 import { formatItemChoiceLabel, formatUnitLabel, itemSelectOption } from "@/lib/item-display";
 import { wholeQuantity } from "@/lib/units";
 import { allocateItemCode } from "@/lib/item-code";
 import { controlMutedClass, lineHeaderClass } from "@/lib/field-styles";
 import { BankAccountSelect, bankAccountsOnly, needsBankAccount } from "@/components/bank-account-select";
+import { paymentMethodLabel } from "@/lib/payment-display";
 import { StockLocationToggle } from "@/components/stock-location-toggle";
 import { stockLocationIdsFor } from "@/lib/businesses";
 import { updateDraftField, useBusinessDraft } from "@/lib/client/useBusinessDraft";
@@ -161,10 +164,11 @@ export default function NewPurchasePage() {
   }, [draftReady, itemCatalog, setDraft]);
 
   React.useEffect(() => {
-    if (paymentMethod !== "BANK" && paymentMethod !== "MIXED") return;
+    const needsAccount = paymentMethod === "BANK" || (paymentMethod === "MIXED" && Number(bankPaid) > 0);
+    if (!needsAccount) return;
     if (selectedBankId && bankOptions.some((account) => account.id === selectedBankId)) return;
     setSelectedBankId(bankOptions[0]?.id || "");
-  }, [paymentMethod, bankOptions, selectedBankId]);
+  }, [paymentMethod, bankPaid, bankOptions, selectedBankId]);
 
   const totals = useMemo(() => {
     return lines.reduce((acc, line) => acc + (line.qty * line.unitCost), 0);
@@ -190,6 +194,31 @@ export default function NewPurchasePage() {
   const handleCancel = () => {
     clearDraft();
     router.push("/purchases");
+  };
+
+  const applyItemScan = (raw: string) => {
+    const item = findItemByScan(itemCatalog, raw);
+    if (!item) {
+      alert("No medicine uses this code. Save the pack code on the item first.");
+      return;
+    }
+    const filled = {
+      itemId: item.id,
+      itemName: formatItemChoiceLabel(item, currentLocation?.id),
+      unit: formatUnitLabel(item),
+      sellingPrice: Number(item.price || 0),
+      qty: wholeQuantity(1, formatUnitLabel(item)),
+      batchChoice: "new",
+      batchCode: "",
+      expireDate: "",
+      noExpiry: false,
+    };
+    const blank = lines.find((line) => !line.itemId);
+    if (blank) {
+      setLines(lines.map((line) => (line.id === blank.id ? { ...line, ...filled } : line)));
+      return;
+    }
+    setLines([...lines, { ...emptyPurchaseLine(), ...filled }]);
   };
 
   const updateLine = (id: string, field: keyof PurchaseLine, value: any) => {
@@ -315,7 +344,7 @@ export default function NewPurchasePage() {
       return alert("Please select a supplier for credit or remaining debt purchases.");
     }
     if (needsBankAccount(paymentMethod, bankPaid) && !selectedBankId) {
-      return alert("Please select a bank account for the bank payment.");
+      return alert("Select the bank account for this bank amount.");
     }
 
     const purchase = {
@@ -418,7 +447,8 @@ export default function NewPurchasePage() {
           </div>
 
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
+            <div className="mb-6 space-y-3">
+              <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest underline decoration-indigo-500 underline-offset-8">Ordered Items</h3>
               <button 
                 onClick={() => setShowItemModal(true)}
@@ -426,6 +456,8 @@ export default function NewPurchasePage() {
               >
                 + Quick Create Item
               </button>
+              </div>
+              <ItemCodeBox onCode={applyItemScan} placeholder="Scan the pack code to choose the medicine" />
             </div>
             
             <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
@@ -463,6 +495,10 @@ export default function NewPurchasePage() {
                     <ReceiptBatchFields
                       compact
                       part="batch"
+                      takenCodes={[
+                        ...inventoryBatches.map((batch: { batchCode?: string }) => batch.batchCode),
+                        ...lines.map((entry) => entry.batchCode),
+                      ]}
                       value={{
                         batchChoice: line.batchChoice || "new",
                         batchCode: line.batchCode || "",
@@ -578,16 +614,16 @@ export default function NewPurchasePage() {
                             : "bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 hover:border-indigo-500"
                         )}
                       >
-                        {method}
+                        {paymentMethodLabel(method)}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {(paymentMethod === "BANK" || paymentMethod === "MIXED") && (
+                {paymentMethod === "BANK" ? (
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                     <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                      Bank Account
+                      Bank account
                     </label>
                     <BankAccountSelect
                       value={selectedBankId}
@@ -595,13 +631,13 @@ export default function NewPurchasePage() {
                       accounts={bankOptions}
                     />
                   </div>
-                )}
+                ) : null}
 
                 {paymentMethod === 'MIXED' && (
                   <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
-                        <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Cash Paid</label>
+                        <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Cash amount</label>
                         <NumericInput
                           value={cashPaid}
                           onValueChange={setCashPaid}
@@ -609,7 +645,7 @@ export default function NewPurchasePage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Bank Paid</label>
+                        <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Bank amount</label>
                         <NumericInput
                           value={bankPaid}
                           onValueChange={setBankPaid}
@@ -618,9 +654,22 @@ export default function NewPurchasePage() {
                       </div>
                     </div>
 
+                    {Number(bankPaid) > 0 ? (
+                      <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
+                          Bank account
+                        </label>
+                        <BankAccountSelect
+                          value={selectedBankId}
+                          onChange={setSelectedBankId}
+                          accounts={bankOptions}
+                        />
+                      </div>
+                    ) : null}
+
                     <div className="p-3 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
                       <div className="flex justify-between text-[10px] font-bold">
-                        <span className="text-slate-500">Remaining Debt:</span>
+                        <span className="text-slate-500">Left to pay the supplier</span>
                         <span className="text-indigo-600 font-black">ETB {formatNumberWithCommas(Math.max(0, totals - cashPaid - bankPaid))}</span>
                       </div>
                     </div>

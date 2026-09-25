@@ -34,6 +34,7 @@ import { paginateRows, saleProfit } from "@/lib/sales-utils";
 import { ReportScopeBar, useReportScope } from "@/components/report-scope-bar";
 import { formatItemChoiceLabel } from "@/lib/item-display";
 import { isBatchExpired } from "@/lib/inventory/fefo";
+import { paymentMethodLabel } from "@/lib/payment-display";
 
 const categories = ["All", "Sales", "Inventory", "Procurement", "Finance", "Credit", "Administrative"] as const;
 
@@ -574,7 +575,7 @@ function ReportDetailView({
             />
           </div>
           <SelectFilter label="Pharmacy" value={filters.locationId} onChange={(value) => setFilter("locationId", value)} hidden options={(state.locations || []).map((location) => ({ value: String(location.id), label: String(location.name) }))} />
-          <SelectFilter label="Payment" value={filters.paymentMethod} onChange={(value) => setFilter("paymentMethod", value)} hidden={!showPaymentFilter} options={["CASH", "BANK", "CREDIT", "MIXED"].map((method) => ({ value: method, label: method }))} />
+          <SelectFilter label="Payment" value={filters.paymentMethod} onChange={(value) => setFilter("paymentMethod", value)} hidden={!showPaymentFilter} options={["CASH", "BANK", "CREDIT", "MIXED"].map((method) => ({ value: method, label: paymentMethodLabel(method) }))} />
           {showDateFilters && report.id !== "inventory-as-of" ? <DateFilter label="From" value={filters.dateFrom} onChange={(value) => setFilter("dateFrom", value)} /> : null}
           {showDateFilters ? <DateFilter label={report.id === "inventory-as-of" ? "As of Date" : "To"} value={filters.dateTo} onChange={(value) => setFilter("dateTo", value)} /> : null}
           <SelectFilter label="Customer" value={filters.customerId} onChange={(value) => setFilter("customerId", value)} hidden={!showCustomerFilter} options={(state.customers || []).map((customer) => ({ value: String(customer.id), label: String(customer.name) }))} />

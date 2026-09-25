@@ -1,5 +1,17 @@
 /** Shared payment method labels and cash/bank/credit(debt) breakdowns. */
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: "Cash",
+  BANK: "Bank",
+  CREDIT: "Credit",
+  MIXED: "Mixed",
+};
+
+export function paymentMethodLabel(method?: string | null) {
+  const key = String(method || "").trim().toUpperCase();
+  return PAYMENT_METHOD_LABELS[key] || String(method || "");
+}
+
 export type SalePaymentParts = {
   cashAmount?: number | null;
   bankAmount?: number | null;

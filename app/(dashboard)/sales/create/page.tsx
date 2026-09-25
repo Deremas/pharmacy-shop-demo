@@ -18,11 +18,14 @@ import { useToast } from "@/components/toast-provider";
 import { NumericInput } from "@/components/numeric-input";
 import { cn, formatNumberWithCommas } from "@/lib/utils";
 import { SearchableSelect } from "@/components/searchable-select";
+import { ItemCodeBox } from "@/components/code-scanner";
+import { findItemByScan } from "@/lib/pack-scan";
 import { AppModal } from "@/components/app-modal";
 import { formatItemChoiceLabel, formatUnitLabel, itemSelectOption } from "@/lib/item-display";
 import { capWholeQuantity } from "@/lib/units";
 import { controlMutedClass, lineHeaderClass } from "@/lib/field-styles";
 import { BankAccountSelect, bankAccountsOnly, needsBankAccount } from "@/components/bank-account-select";
+import { paymentMethodLabel } from "@/lib/payment-display";
 import { updateDraftField, useBusinessDraft } from "@/lib/client/useBusinessDraft";
 import {
   WALK_IN_CUSTOMER_ID,
@@ -85,6 +88,7 @@ export default function NewSalePage() {
   const canSellBelowCost = sessionUser?.role === "Super Admin" || Boolean(sessionUser?.permissions?.includes("sales.sell_below_cost"));
   const {
     items,
+    products = [],
     customers,
     addCustomer,
     bankAccounts,
@@ -148,10 +152,11 @@ export default function NewSalePage() {
   }, [draftReady, setDraft]);
 
   React.useEffect(() => {
-    if (paymentMethod !== "BANK" && paymentMethod !== "MIXED") return;
+    const needsAccount = paymentMethod === "BANK" || (paymentMethod === "MIXED" && Number(bankPaid) > 0);
+    if (!needsAccount) return;
     if (selectedBankId && bankOptions.some((account) => account.id === selectedBankId)) return;
     setSelectedBankId(bankOptions[0]?.id || "");
-  }, [paymentMethod, bankOptions, selectedBankId]);
+  }, [paymentMethod, bankPaid, bankOptions, selectedBankId]);
 
   React.useEffect(() => {
     if (!currentLocation?.id) return;
@@ -232,6 +237,41 @@ export default function NewSalePage() {
     return locationItems.find((item) => item.id === itemId)?.stock ?? 0;
   };
 
+  const applyItemScan = (raw: string) => {
+    const catalog = products.filter((entry) => !selectedLocationId || entry.locationId === selectedLocationId);
+    const item = findItemByScan(catalog.length ? catalog : locationItems, raw);
+    if (!item) {
+      toast.error("No medicine uses this code. Save the pack code on the item first.");
+      return;
+    }
+    const stockItem = locationItems.find((entry) => entry.id === item.id);
+    const availableStock = Number(stockItem?.stock ?? item.stock ?? 0);
+    if (availableStock <= 0) {
+      toast.error("This medicine is out of stock.");
+      return;
+    }
+    const unit = formatUnitLabel(item);
+    const fill = (line: SaleLine): SaleLine => ({
+      ...line,
+      itemId: item.id,
+      itemName: formatItemChoiceLabel(item, selectedLocationId || currentLocation?.id),
+      unit,
+      qty: availableStock > 0 ? capWholeQuantity(1, availableStock, unit) : 0,
+      price: Number(stockItem?.price ?? item.price ?? 0),
+    });
+    const existing = lines.find((line) => line.itemId === item.id);
+    if (existing) {
+      updateLine(existing.id, "qty", Number(existing.qty) + 1);
+      return;
+    }
+    const blank = lines.find((line) => !line.itemId);
+    if (blank) {
+      setLines(lines.map((line) => (line.id === blank.id ? fill(line) : line)));
+      return;
+    }
+    setLines([...lines, fill(emptySaleLine())]);
+  };
+
   const updateLine = (id: string, field: keyof SaleLine, value: any) => {
     setLines(
       lines.map((line) => {
@@ -284,10 +324,6 @@ export default function NewSalePage() {
       toast.error("Please select items for all lines");
       return;
     }
-    if (needsBankAccount(paymentMethod, bankPaid) && !selectedBankId) {
-      toast.error(paymentMethod === "MIXED" ? "Please select a bank account for the bank portion." : "Please select a bank account for bank sales.");
-      return;
-    }
     const invalidQtyLine = lines.find((line) => line.qty <= 0);
     if (invalidQtyLine) {
       toast.error(
@@ -322,9 +358,15 @@ export default function NewSalePage() {
       creditAmount = Math.max(0, totals.total - cashAmount - bankAmount);
     }
 
-    if (creditAmount > 0 && isWalkInCustomer(selectedCustomerId)) {
-      toast.error("Credit sales require a customer. Walk-in cannot be used for credit.");
-      return;
+    if (mode === "COMPLETE") {
+      if (needsBankAccount(paymentMethod, bankPaid) && !selectedBankId) {
+        toast.error("Select the bank account for this bank amount.");
+        return;
+      }
+      if (creditAmount > 0 && isWalkInCustomer(selectedCustomerId)) {
+        toast.error("Credit sales require a customer. Walk-in cannot be used for credit.");
+        return;
+      }
     }
 
     const sale = {
@@ -366,7 +408,7 @@ export default function NewSalePage() {
       const telegram = result?.telegram;
       if (telegram && !telegram.ok) {
         toast.error({
-          title: "Sale saved, but Telegram failed",
+          title: mode === "HOLD" ? "Voucher sent, but Telegram failed" : "Sale saved, but Telegram failed",
           description: telegram.error || telegram.skipped || "Check TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID on Vercel.",
         });
       }
@@ -401,8 +443,8 @@ export default function NewSalePage() {
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               New Sale
             </h1>
-            <p className="text-slate-500 mt-1 uppercase text-[10px] font-black tracking-widest">
-              Manual Transaction Entry
+            <p className="mt-1 max-w-xl text-sm font-medium text-slate-500">
+              Add the medicines here. Save sale takes the money now. Send to cashier holds the stock until the cashier is paid.
             </p>
           </div>
         </div>
@@ -461,10 +503,11 @@ export default function NewSalePage() {
           </div>
 
           <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
-            <div className="mb-6">
+            <div className="mb-6 space-y-3">
               <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest underline decoration-indigo-500 underline-offset-8">
                 Added Items
               </h3>
+              <ItemCodeBox onCode={applyItemScan} placeholder="Scan the pack code to add the medicine" />
             </div>
 
             <div className="overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
@@ -647,6 +690,9 @@ export default function NewSalePage() {
                   <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
                     Payment Method
                   </label>
+                  <p className="text-xs font-medium leading-5 text-slate-500">
+                    Used only by Save sale. Send to cashier leaves the payment for the cashier.
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
                     {["CASH", "BANK", "CREDIT", "MIXED"].map((method) => (
                       <button
@@ -659,16 +705,16 @@ export default function NewSalePage() {
                             : "bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 hover:border-indigo-500",
                         )}
                       >
-                        {method}
+                        {paymentMethodLabel(method)}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {(paymentMethod === "BANK" || paymentMethod === "MIXED") && (
+                {paymentMethod === "BANK" ? (
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                     <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                      Bank Account
+                      Bank account
                     </label>
                     <BankAccountSelect
                       value={selectedBankId}
@@ -676,14 +722,14 @@ export default function NewSalePage() {
                       accounts={bankOptions}
                     />
                   </div>
-                )}
+                ) : null}
 
                 {paymentMethod === "MIXED" && (
                   <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                          Cash Portion
+                          Cash amount
                         </label>
                         <NumericInput
                           value={cashPaid}
@@ -693,7 +739,7 @@ export default function NewSalePage() {
                       </div>
                       <div className="space-y-2">
                         <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                          Bank Portion
+                          Bank amount
                         </label>
                         <NumericInput
                           value={bankPaid}
@@ -703,10 +749,23 @@ export default function NewSalePage() {
                       </div>
                     </div>
 
+                    {Number(bankPaid) > 0 ? (
+                      <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
+                          Bank account
+                        </label>
+                        <BankAccountSelect
+                          value={selectedBankId}
+                          onChange={setSelectedBankId}
+                          accounts={bankOptions}
+                        />
+                      </div>
+                    ) : null}
+
                     <div className="p-3 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
                       <div className="flex justify-between text-[10px] font-bold">
                         <span className="text-slate-500">
-                          Remaining to Credit:
+                          Left on credit
                         </span>
                         <span className="text-indigo-600 font-black">
                           ETB {formatNumberWithCommas(Math.max(0, totals.total - cashPaid - bankPaid))}
@@ -729,6 +788,9 @@ export default function NewSalePage() {
       </div>
 
       <div className="create-actions">
+          <p className="w-full text-xs font-medium leading-5 text-slate-500">
+            Send to cashier keeps these units reserved and opens the cashier queue. No money is recorded yet. Save sale records the sale and reduces stock now.
+          </p>
           <button
             onClick={handleCancel}
             className="btn-cancel flex-1 rounded-2xl px-6 sm:flex-none sm:px-8"

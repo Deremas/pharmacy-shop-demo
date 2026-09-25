@@ -1,6 +1,7 @@
 export type ItemLike = {
   name?: string;
   code?: string;
+  barcode?: string | null;
   category?: string;
   locationId?: string;
   size?: string;
@@ -76,7 +77,7 @@ export function formatTelegramItemLabel(item: ItemLike, businessId?: string) {
 
 export function itemSearchText(item: ItemLike, businessId?: string) {
   const variant = itemVariant(item, businessId);
-  return [item.name, item.code, item.category, variant.style, variant.sizeLabel, variant.badge, variant.code]
+  return [item.name, item.code, item.barcode, item.category, variant.style, variant.sizeLabel, variant.badge, variant.code]
     .filter(Boolean)
     .join(" ");
 }

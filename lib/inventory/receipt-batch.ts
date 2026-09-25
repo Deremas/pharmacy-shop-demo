@@ -7,14 +7,42 @@ export type OpenBatch = BatchStock & {
   locationId?: string | null;
 };
 
-export function internalBatchCode(now = new Date()) {
-  const stamp = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const tail = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `INT-${stamp}-${tail}`;
+const INTERNAL_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function internalStamp(now: Date) {
+  const year = String(now.getFullYear()).slice(2);
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
+}
+
+function randomTail(length: number) {
+  let tail = "";
+  for (let index = 0; index < length; index += 1) {
+    tail += INTERNAL_ALPHABET[Math.floor(Math.random() * INTERNAL_ALPHABET.length)];
+  }
+  return tail;
+}
+
+/** Short shop lot, for example I250925K7. Skips codes already in use. */
+export function internalBatchCode(taken: Iterable<string | null | undefined> = [], now = new Date()) {
+  const used = new Set(
+    [...taken].map((code) => String(code || "").trim().toUpperCase()).filter(Boolean),
+  );
+  const stamp = internalStamp(now);
+  for (let length = 2; length <= 3; length += 1) {
+    for (let attempt = 0; attempt < 48; attempt += 1) {
+      const code = `I${stamp}${randomTail(length)}`;
+      if (!used.has(code)) return code;
+    }
+  }
+  const fallback = `I${stamp}${Date.now().toString(36).slice(-4).toUpperCase()}`;
+  return used.has(fallback) ? `${fallback}${randomTail(1)}` : fallback;
 }
 
 export function isInternalBatchCode(code?: string | null) {
-  return String(code || "").trim().toUpperCase().startsWith("INT-");
+  const value = String(code || "").trim().toUpperCase();
+  return value.startsWith("INT-") || /^I\d{6}[0-9A-Z]{2,5}$/.test(value);
 }
 
 export function toDateInputValue(value?: Date | string | null) {

@@ -19,7 +19,10 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { formatUnitLabel, itemSearchText, itemVariant } from "@/lib/item-display";
 import { controlMutedClass } from "@/lib/field-styles";
 import { BankAccountSelect, bankAccountsOnly, needsBankAccount } from "@/components/bank-account-select";
+import { paymentMethodLabel } from "@/lib/payment-display";
 import { AppModal } from "@/components/app-modal";
+import { CodeScanButton } from "@/components/code-scanner";
+import { findItemByScan } from "@/lib/pack-scan";
 import { updateDraftField, useBusinessDraft } from "@/lib/client/useBusinessDraft";
 import {
   WALK_IN_CUSTOMER_ID,
@@ -38,7 +41,7 @@ const emptyPosDraft = () => ({
 });
 
 export default function PosPage() {
-  const { items, customers, addCustomer, currentLocation, addSale, settings, bankAccounts } = useAppData();
+  const { items, products = [], customers, addCustomer, currentLocation, addSale, settings, bankAccounts } = useAppData();
   const toast = useToast();
   const { draft, setDraft, clearDraft, draftReady } = useBusinessDraft("sales-pos", emptyPosDraft);
   const cart = draft.cart;
@@ -60,10 +63,11 @@ export default function PosPage() {
   const bankOptions = useMemo(() => bankAccountsOnly(bankAccounts), [bankAccounts]);
 
   useEffect(() => {
-    if (paymentMethod !== "BANK" && paymentMethod !== "MIXED") return;
+    const needsAccount = paymentMethod === "BANK" || (paymentMethod === "MIXED" && Number(bankPaid) > 0);
+    if (!needsAccount) return;
     if (selectedBankId && bankOptions.some((account) => account.id === selectedBankId)) return;
     setSelectedBankId(bankOptions[0]?.id || "");
-  }, [paymentMethod, bankOptions, selectedBankId]);
+  }, [paymentMethod, bankPaid, bankOptions, selectedBankId]);
 
   // Filter items available at current location
   const locationItems = useMemo(
@@ -157,7 +161,7 @@ export default function PosPage() {
     }
 
     if (needsBankAccount(paymentMethod, bankPaid) && !selectedBankId) {
-      toast.error("Please select a bank account.");
+      toast.error("Select the bank account for this bank amount.");
       return;
     }
 
@@ -227,21 +231,45 @@ export default function PosPage() {
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
 
+  const applyScan = (raw: string) => {
+    const catalog = products.filter((entry) => entry.locationId === currentLocation?.id);
+    const match = findItemByScan(catalog.length ? catalog : locationItems, raw);
+    if (!match) {
+      toast.error("No medicine uses this code. Save the pack code on the item first.");
+      return;
+    }
+    const item = locationItems.find((entry) => entry.id === match.id) || match;
+    if (Number(item.stock || 0) <= 0) {
+      toast.error("This medicine is out of stock.");
+      return;
+    }
+    addToCart(item);
+    setSearch("");
+  };
+
   if (!draftReady) return null;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-8 lg:flex-row">
       <div className="flex-1 flex flex-col gap-6 overflow-hidden">
         <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-4 rounded-xl shadow-sm">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
-            <input 
-              type="text" 
-              placeholder="Search items..."
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-slate-900 dark:text-zinc-200 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-sm"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
+              <input
+                type="text"
+                placeholder="Search or scan a pack code"
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-slate-900 dark:text-zinc-200 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-sm"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  applyScan(search);
+                }}
+              />
+            </div>
+            <CodeScanButton label="Scan pack code" className="h-12 w-12" onScan={applyScan} />
           </div>
         </div>
 
@@ -432,12 +460,12 @@ export default function PosPage() {
                       : "border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400",
                   )}
                 >
-                  {method}
+                  {paymentMethodLabel(method)}
                 </button>
               ))}
             </div>
 
-            {(paymentMethod === "BANK" || paymentMethod === "MIXED") ? (
+            {paymentMethod === "BANK" ? (
               <div className="space-y-1">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">
                   Bank account
@@ -453,7 +481,7 @@ export default function PosPage() {
             {paymentMethod === "MIXED" ? (
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Cash Paid</label>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Cash amount</label>
                   <NumericInput
                     value={cashPaid}
                     onValueChange={setCashPaid}
@@ -461,15 +489,25 @@ export default function PosPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Bank Paid</label>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Bank amount</label>
                   <NumericInput
                     value={bankPaid}
                     onValueChange={setBankPaid}
                     className={cn(controlMutedClass, "rounded-xl")}
                   />
                 </div>
+                {Number(bankPaid) > 0 ? (
+                  <div className="col-span-2 space-y-1">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Bank account</p>
+                    <BankAccountSelect
+                      value={selectedBankId}
+                      onChange={setSelectedBankId}
+                      accounts={bankOptions}
+                    />
+                  </div>
+                ) : null}
                 <div className="col-span-2 rounded-xl bg-indigo-50 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-300">
-                  Credit balance: {formatCurrency(Math.max(0, total - cashPaid - bankPaid))}
+                  Left on credit: {formatCurrency(Math.max(0, total - cashPaid - bankPaid))}
                 </div>
               </div>
             ) : null}

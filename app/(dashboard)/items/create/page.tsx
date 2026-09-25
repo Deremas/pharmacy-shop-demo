@@ -2,6 +2,7 @@
 
 import React, { Suspense, useState } from "react";
 import { ArrowLeft, Save, Barcode, Layers, Tag, X, ChevronDown } from "lucide-react";
+import { CodeScanButton } from "@/components/code-scanner";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppData } from "@/lib/client/useAppData";
 import { motion, AnimatePresence } from "motion/react";
@@ -38,6 +39,7 @@ function CreateItemForm() {
   const emptyItemForm = () => ({
     name: "",
     code: "",
+    barcode: "",
     categoryId: "",
     stock: 0,
     unitId: "",
@@ -149,6 +151,7 @@ function CreateItemForm() {
     setFormData({
       name: editingItem.name || "",
       code: editingItem.code || "",
+      barcode: editingItem.barcode || "",
       categoryId: editingItem.categoryId || "",
       stock: 0,
       unitId: editingItem.unitId || "",
@@ -186,6 +189,7 @@ function CreateItemForm() {
           id: editId,
           name: formData.name,
           code: formData.code,
+          barcode: formData.barcode,
           categoryId: formData.categoryId,
           unitId: formData.unitId,
           buyingPrice: formData.buyingPrice,
@@ -330,6 +334,29 @@ function CreateItemForm() {
               </div>
               <p className="px-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
                 {codeManual ? "Custom code" : formData.code ? "Generated from the item name" : "Leave blank and the system fills this"}
+              </p>
+            </div>
+
+            <div className="space-y-2 sm:col-span-2 lg:col-span-12">
+              <label className="px-1 text-[11px] font-semibold uppercase tracking-widest text-slate-800 dark:text-zinc-200">Pack code</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Barcode on every pack"
+                  value={formData.barcode || ""}
+                  onChange={(event) => setFormData({ ...formData, barcode: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.preventDefault();
+                  }}
+                  className={`${fieldClass} font-mono`}
+                />
+                <CodeScanButton
+                  label="Scan pack code"
+                  onScan={(code) => setFormData({ ...formData, barcode: code.trim() })}
+                />
+              </div>
+              <p className="px-1 text-[10px] font-semibold text-slate-600 dark:text-zinc-400">
+                The code that is the same on every pack. A scan at the till uses it. Leave it blank if the pack has no code.
               </p>
             </div>
 

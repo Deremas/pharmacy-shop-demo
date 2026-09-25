@@ -7,6 +7,7 @@ import { formatTelegramItemLabel } from "@/lib/item-display";
 import { formatBankAccountLabel } from "@/lib/payment-display";
 import { createPurchaseSchema } from "@/lib/validation/purchase";
 import { assertWholeQuantity } from "@/lib/units";
+import { assertInternalBatchCodeAvailable } from "@/lib/inventory/internal-batch-guard";
 
 export async function createPurchase(input: unknown, actor: WriteActor) {
   const parsed = createPurchaseSchema.safeParse(input);
@@ -90,6 +91,17 @@ export async function createPurchase(input: unknown, actor: WriteActor) {
         _sum: { remainingQuantity: true },
       });
       const beforeQuantity = before._sum.remainingQuantity || 0;
+      const existingBatch = await tx.inventoryBatch.findFirst({
+        where: {
+          itemId: line.itemId,
+          locationId: stockLocationId,
+          batchCode: line.batchCode,
+          expireDate: line.expireDate,
+          buyingPrice: asMoney(line.unitCost),
+          status: "ACTIVE",
+        },
+      });
+      if (!existingBatch) await assertInternalBatchCodeAvailable(tx, line.batchCode);
       const purchaseItem = await tx.purchaseItem.create({
         data: {
           purchaseId: purchase.id,
@@ -100,16 +112,6 @@ export async function createPurchase(input: unknown, actor: WriteActor) {
           totalAmount: line.calculatedTotal,
           batchCode: line.batchCode,
           expireDate: line.expireDate,
-        },
-      });
-      const existingBatch = await tx.inventoryBatch.findFirst({
-        where: {
-          itemId: line.itemId,
-          locationId: stockLocationId,
-          batchCode: line.batchCode,
-          expireDate: line.expireDate,
-          buyingPrice: asMoney(line.unitCost),
-          status: "ACTIVE",
         },
       });
       const batch = existingBatch

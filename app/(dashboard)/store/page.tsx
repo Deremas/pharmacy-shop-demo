@@ -117,7 +117,7 @@ export function StockView({
   const totalValue = filteredStock.reduce((sum: number, item: any) => sum + Number(item.stock || 0) * Number(item.price || 0), 0);
   const totalQty = filteredStock.reduce((sum: number, item: any) => sum + Number(item.stock || 0), 0);
 
-  const seedPrices = (item: any, batches: Array<{ buyingPrice?: number; sellingPrice?: number; createdAt?: string }>) => {
+  const seedPrices = (item: any, batches: Array<{ buyingPrice?: unknown; sellingPrice?: unknown; createdAt?: Date | string | null }>) => {
     const latest = [...batches].sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())[0];
     setAdjustBuyingPrice(String(Number(latest?.buyingPrice ?? item?.buyingPrice ?? 0)));
     setAdjustSellingPrice(String(Number(latest?.sellingPrice ?? item?.sellingPrice ?? item?.price ?? 0)));
@@ -534,7 +534,11 @@ export function StockView({
 
                   {addingNew ? (
                     <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-zinc-800">
-                      <ReceiptBatchFields value={adjustReceipt} onChange={setAdjustReceipt} />
+                      <ReceiptBatchFields
+                        value={adjustReceipt}
+                        takenCodes={inventoryBatches.map((batch: { batchCode?: string }) => batch.batchCode)}
+                        onChange={setAdjustReceipt}
+                      />
                       <div className="grid gap-3 sm:grid-cols-2">
                         <label className="block">
                           <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Buying price</span>
@@ -642,6 +646,7 @@ export function StockView({
               <div className="mt-4 rounded-xl border border-slate-200 p-4 dark:border-zinc-800">
                 <ReceiptBatchFields
                   value={stockEntry}
+                  takenCodes={inventoryBatches.map((batch: { batchCode?: string }) => batch.batchCode)}
                   existingBatches={openBatches(inventoryBatches, stockEntryItem?.id, stockEntryItem?.locationId)}
                   onChange={(next) => setStockEntry((current) => ({ ...current, ...next }))}
                 />

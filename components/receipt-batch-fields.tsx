@@ -1,6 +1,8 @@
 "use client";
 
+import { CodeScanButton } from "@/components/code-scanner";
 import { expiryInputWarning, formatExpiryDay, internalBatchCode, isInternalBatchCode, toDateInputValue } from "@/lib/inventory/receipt-batch";
+import { cleanPackCode } from "@/lib/pack-scan";
 
 type ExistingBatch = {
   id: string;
@@ -19,12 +21,14 @@ export type ReceiptBatchValue = {
 export function ReceiptBatchFields({
   value,
   existingBatches = [],
+  takenCodes = [],
   onChange,
   compact = false,
   part,
 }: {
   value: ReceiptBatchValue;
   existingBatches?: ExistingBatch[];
+  takenCodes?: Array<string | null | undefined>;
   onChange: (next: ReceiptBatchValue) => void;
   compact?: boolean;
   part?: "batch" | "expiry";
@@ -78,19 +82,34 @@ export function ReceiptBatchFields({
               aria-label="Batch number"
               value={value.batchCode}
               onChange={(event) => onChange({ ...value, batchChoice: "new", batchCode: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.preventDefault();
+              }}
               placeholder="From carton"
               className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-950"
             />
+            <CodeScanButton
+              label="Scan carton code"
+              onScan={(code) => onChange({ ...value, batchChoice: "new", batchCode: cleanPackCode(code) || "" })}
+            />
             <button
               type="button"
-              onClick={() => onChange({ ...value, batchChoice: "new", batchCode: internalBatchCode() })}
+              onClick={() => onChange({
+                ...value,
+                batchChoice: "new",
+                batchCode: internalBatchCode([
+                  ...takenCodes,
+                  ...existingBatches.map((batch) => batch.batchCode),
+                  value.batchCode,
+                ]),
+              })}
               className="shrink-0 rounded-xl border border-slate-200 px-2 text-[10px] font-black uppercase tracking-wide text-slate-600 hover:border-indigo-300 hover:text-indigo-600 dark:border-zinc-700"
             >
               Internal
             </button>
           </span>
           {isInternalBatchCode(value.batchCode) ? (
-            <p className="mt-1 text-[10px] font-semibold leading-4 text-amber-600">Internal lot. This is not the manufacturer batch.</p>
+            <p className="mt-1 text-[10px] font-semibold leading-4 text-amber-600">Shop code. This is not the number on the carton.</p>
           ) : null}
         </label>
       )}
