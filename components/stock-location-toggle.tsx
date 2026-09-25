@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { ChevronDown } from "lucide-react";
-import { shopLocationIdFor, stockLocationIdsFor, storeLocationIdFor } from "@/lib/businesses";
+import { isStoreLocationId, shopLocationIdFor, storeLocationIdFor } from "@/lib/businesses";
+import { useCan } from "@/lib/client/useCan";
 import { controlMutedClass } from "@/lib/field-styles";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +18,14 @@ export function StockLocationToggle({
   onChange: (locationId: string) => void;
   placeholder?: string;
 }) {
+  const can = useCan();
+  const canViewStore = can("inventory.store.view");
+  const counterId = businessId ? shopLocationIdFor(businessId) : "";
+
+  useEffect(() => {
+    if (!canViewStore && isStoreLocationId(value) && counterId) onChange(counterId);
+  }, [canViewStore, counterId, onChange, value]);
+
   if (!businessId) {
     return (
       <div className={cn(controlMutedClass, "flex items-center text-xs font-black uppercase tracking-widest text-slate-500")}>
@@ -25,11 +35,11 @@ export function StockLocationToggle({
   }
 
   const options = [
-    { id: shopLocationIdFor(businessId), label: "Dispensary" },
-    { id: storeLocationIdFor(businessId), label: "Store" },
+    { id: shopLocationIdFor(businessId), label: "Counter" },
+    ...(canViewStore ? [{ id: storeLocationIdFor(businessId), label: "Store" }] : []),
   ];
-  const allowed = stockLocationIdsFor(businessId);
-  const selected = allowed.includes(value) ? value : placeholder ? "" : options[0].id;
+  const allowed = options.map((option) => option.id);
+  const selected = allowed.includes(value) ? value : placeholder ? "" : options[0]?.id || "";
 
   return (
     <div className="relative">

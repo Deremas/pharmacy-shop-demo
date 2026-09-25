@@ -59,7 +59,7 @@ export default function MovementsPage() {
             />
           </div>
           {locations.length > 1 ? (
-            <Select value={locationId} onChange={(value) => { setLocationId(value); setPage(1); }} label="Dispensary / Store" options={locations.map((location: any) => ({ value: location.id, label: location.name }))} />
+            <Select value={locationId} onChange={(value) => { setLocationId(value); setPage(1); }} label="Counter / Store" options={locations.map((location: any) => ({ value: location.id, label: location.name }))} />
           ) : null}
           <Select value={type} onChange={(value) => { setType(value); setPage(1); }} label="All Types" options={movementTypes.map((entry) => ({ value: entry, label: entry.replace(/_/g, " ") }))} />
         </div>

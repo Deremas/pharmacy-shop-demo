@@ -19,7 +19,7 @@ import { createCashTransfer, createCustomerPayment, createExpense, createExpense
 import { isRetryableWriteConflict, runSerializableTransaction } from "@/lib/actions/transaction";
 import { resolveActorLocationId } from "@/lib/actions/common";
 import { bootstrapBusinessDefaults, ensureDefaultPaymentAccounts, ensureExpenseCategories, ensureStockLocations } from "@/lib/actions/business-defaults";
-import { parseSettingRecord, BUSINESSES, isTenantBusiness, normalizeAssignedLocationIds, remapLocationId, stockScopeIdsFor, tenantBusinessId } from "@/lib/businesses";
+import { parseSettingRecord, BUSINESSES, isStoreLocationId, isTenantBusiness, normalizeAssignedLocationIds, remapLocationId, stockScopeIdsFor, tenantBusinessId } from "@/lib/businesses";
 import { listCreditSales } from "@/lib/finance/credit-ledger";
 import { formatUnitLabel } from "@/lib/item-display";
 import { resolvePurchasePaymentMethod, resolveSalePaymentMethod } from "@/lib/payment-display";
@@ -111,6 +111,10 @@ async function getActorId(currentUser?: any) {
 
 function hasPermission(currentUser: any, key: string) {
   return currentUser?.role === "Super Admin" || currentUser?.permissions?.includes(key);
+}
+
+function denyStoreStock(currentUser: any, locationId?: string | null) {
+  return isStoreLocationId(locationId) && !hasPermission(currentUser, "inventory.store.view");
 }
 
 const ACTION_PERMISSIONS: Record<string, string> = {
@@ -626,9 +630,14 @@ export async function GET() {
     return user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username : "System";
   };
 
+  const canViewStoreStock = hasPermission(currentUser, "inventory.store.view");
+  const showLocation = (locationId?: string | null) => canViewStoreStock || !isStoreLocationId(locationId);
+
   return NextResponse.json({
     currentLocation,
-    locations: locations.map((location) => ({
+    locations: locations
+      .filter((location) => showLocation(location.id))
+      .map((location) => ({
       id: location.id,
       name: location.name,
       type: location.type,
@@ -670,8 +679,8 @@ export async function GET() {
       requiresPrescription: item.requiresPrescription,
       isControlled: item.isControlled,
     })),
-    items: [...stockByItemLocation.values()],
-    inventoryBatches: batches.map((batch) => ({
+    items: [...stockByItemLocation.values()].filter((row) => showLocation(row.locationId)),
+    inventoryBatches: batches.filter((batch) => showLocation(batch.locationId)).map((batch) => ({
       id: batch.id,
       itemId: batch.itemId,
       locationId: batch.locationId,
@@ -892,7 +901,7 @@ export async function GET() {
       createdById: tx.createdById,
       createdByName: userDisplayName(tx.createdById),
     })),
-    transfers: transfers.flatMap((transfer) => transfer.items.map((line) => ({
+    transfers: transfers.filter((transfer) => showLocation(transfer.sourceLocationId) && showLocation(transfer.destinationLocationId)).flatMap((transfer) => transfer.items.map((line) => ({
       id: transfer.id,
       fromLocationId: transfer.sourceLocationId,
       toLocationId: transfer.destinationLocationId,
@@ -901,7 +910,7 @@ export async function GET() {
       date: transfer.transferDate,
       status: transfer.status,
     }))),
-    inventoryMovements: inventoryMovements.map((movement) => ({
+    inventoryMovements: inventoryMovements.filter((movement) => showLocation(movement.locationId)).map((movement) => ({
       id: movement.id,
       itemId: movement.itemId,
       locationId: movement.locationId,
@@ -1961,6 +1970,9 @@ export async function POST(request: NextRequest) {
     if (reason.length < 5) {
       return NextResponse.json({ ok: false, error: "Damage reason is required and must be descriptive." }, { status: 400 });
     }
+    if (denyStoreStock(currentUser, payload.locationId)) {
+      return NextResponse.json({ ok: false, error: "You do not have access to store stock." }, { status: 403 });
+    }
 
     try {
       const damage = await runSerializableTransaction(async (tx) => {
@@ -2097,6 +2109,9 @@ export async function POST(request: NextRequest) {
 
     if (!payload.itemId || !payload.locationId || !Number.isFinite(quantity) || quantity <= 0) {
       return NextResponse.json({ ok: false, error: "A valid item, location, and positive quantity are required." }, { status: 400 });
+    }
+    if (denyStoreStock(currentUser, payload.locationId)) {
+      return NextResponse.json({ ok: false, error: "You do not have access to store stock." }, { status: 403 });
     }
     if (!Number.isFinite(buyingPrice) || buyingPrice < 0 || !Number.isFinite(sellingPrice) || sellingPrice < 0) {
       return NextResponse.json({ ok: false, error: "Buying and selling prices must be non-negative numbers." }, { status: 400 });

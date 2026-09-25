@@ -32,7 +32,7 @@ export async function createTransfer(input: unknown, actor: WriteActor) {
       tx.location.findFirst({ where: { id: fromLocationId, isActive: true }, select: { id: true } }),
       tx.location.findFirst({ where: { id: toLocationId, isActive: true }, select: { id: true } }),
     ]);
-    if (!fromLocation || !toLocation) throw new Error("Dispensary or store is unavailable for this transfer.");
+    if (!fromLocation || !toLocation) throw new Error("Counter or store is unavailable for this transfer.");
 
     const transfer = await tx.transfer.create({
       data: {

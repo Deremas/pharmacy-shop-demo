@@ -98,7 +98,7 @@ export default function SoldItems() {
               onChange={(event) => setLocationId(event.target.value)}
               className="bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500 p-2 outline-none"
             >
-              <option value="">Dispensary / Store</option>
+              <option value="">Counter / Store</option>
               {businessLocations.map((location: any) => (
                 <option key={location.id} value={location.id}>{location.name}</option>
               ))}
@@ -121,7 +121,7 @@ export default function SoldItems() {
                 <th className="px-6 py-4">Unit Price</th>
                 <th className="px-6 py-4">Total Amount</th>
                 <th className="px-6 py-4">Payment</th>
-                {showLocation && <th className="px-6 py-4">Dispensary/Store</th>}
+                {showLocation && <th className="px-6 py-4">Counter/Store</th>}
                 <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4 text-right">Invoice</th>
               </tr>

@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronDown, Edit, Layers, Plus, Search, Trash } from "l
 import Link from "next/link";
 import { useAppData } from "@/lib/client/useAppData";
 import { useCan } from "@/lib/client/useCan";
+import { isStoreLocationId } from "@/lib/businesses";
 import { formatItemChoiceLabel, formatUnitLabel, itemVariant } from "@/lib/item-display";
 import { expiryTone, formatExpiryDay, openBatches, soonestBatch } from "@/lib/inventory/receipt-batch";
 import { BatchListModal } from "@/components/batch-list-modal";
@@ -13,6 +14,11 @@ import { cn, formatCurrency } from "@/lib/utils";
 export default function ItemList() {
   const { products = [], items = [], locations = [], currentLocation, inventoryBatches = [], deleteItem } = useAppData();
   const can = useCan();
+  const canViewStore = can("inventory.store.view");
+  const stockRows = canViewStore ? items : items.filter((row: { locationId?: string }) => !isStoreLocationId(row.locationId));
+  const visibleBatches = canViewStore
+    ? inventoryBatches
+    : inventoryBatches.filter((batch: { locationId?: string }) => !isStoreLocationId(batch.locationId));
   const [search, setSearch] = React.useState("");
   const [category, setCategory] = React.useState("");
   const [itemToDelete, setItemToDelete] = React.useState<string | null>(null);
@@ -40,7 +46,7 @@ export default function ItemList() {
   });
 
   const stockFor = (itemId: string, locationId?: string) =>
-    items
+    stockRows
       .filter((row: any) => row.id === itemId && (!locationId || row.locationId === locationId))
       .reduce((sum: number, row: any) => sum + Number(row.stock || 0), 0);
 
@@ -118,7 +124,7 @@ export default function ItemList() {
               {filteredItems.map((item: any) => {
                 const activeStock = stockFor(item.id, currentLocation?.id);
                 const totalStock = stockFor(item.id);
-                const itemBatches = openBatches(inventoryBatches, item.id);
+                const itemBatches = openBatches(visibleBatches, item.id);
                 const soonest = soonestBatch(itemBatches);
                 const variant = itemVariant(item, currentLocation?.id);
                 const itemName = variant.sizeLabel && variant.sizeLabel.toLowerCase() !== variant.style.toLowerCase()
@@ -193,7 +199,7 @@ export default function ItemList() {
         onClose={() => setBatchItem(null)}
         title={batchItem?.name || "Batches"}
         subtitle="Open batches for this item"
-        batches={openBatches(inventoryBatches, batchItem?.id).map((batch) => ({
+        batches={openBatches(visibleBatches, batchItem?.id).map((batch) => ({
           ...batch,
           locationName: locations.find((location: any) => location.id === batch.locationId)?.name || currentLocation?.name,
         }))}

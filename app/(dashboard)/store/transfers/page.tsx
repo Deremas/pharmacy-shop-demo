@@ -23,7 +23,7 @@ export default function TransfersPage() {
             <ArrowRightLeft className="w-8 h-8 text-indigo-600" />
             Stock Transfers
           </h1>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Dispensary and store movement for {currentLocation?.name || "this pharmacy"}</p>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Counter and store movement for {currentLocation?.name || "this pharmacy"}</p>
         </div>
         {canCreateTransfer && (
           <Link 

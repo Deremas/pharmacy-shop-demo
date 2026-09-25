@@ -54,7 +54,7 @@ export default function AllLocationStock() {
     <div className="space-y-6 animate-in fade-in duration-500 font-sans">
       <div className="page-heading">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Dispensary/Store Inventory Matrix</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Counter/Store Inventory Matrix</h1>
           <p className="text-slate-600 dark:text-zinc-400 text-sm font-bold uppercase tracking-widest mt-1">Aggregated stock by location</p>
         </div>
         <button onClick={refresh} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">

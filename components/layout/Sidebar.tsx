@@ -62,7 +62,7 @@ const menuItems: MenuItem[] = [
       {
         label: "Store Stock",
         path: "/store",
-        permission: "inventory.stock.view",
+        permission: "inventory.store.view",
       },
       {
         label: "Low Stock",

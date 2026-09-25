@@ -196,7 +196,7 @@ export default function DamagePage() {
             </div>
             <div>
               <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-500">
-                Dispensary / Store
+                Counter / Store
               </label>
               <StockLocationToggle
                 businessId={currentLocation?.id}

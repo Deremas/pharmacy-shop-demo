@@ -15,7 +15,7 @@ export async function createPurchase(input: unknown, actor: WriteActor) {
   const businessId = tenantBusinessId(data.locationId);
   const stockLocationId = String(data.stockLocationId || "").trim();
   if (!stockLocationIdsFor(businessId).includes(stockLocationId)) {
-    throw new Error("Select Dispensary or Store to receive this stock.");
+    throw new Error("Select Counter or Store to receive this stock.");
   }
   assertLocationAccess(actor, businessId, "You do not have access to purchase into the selected location.");
 
@@ -26,7 +26,7 @@ export async function createPurchase(input: unknown, actor: WriteActor) {
       tx.supplier.findFirst({ where: { id: data.supplierId, isActive: true, locationId: businessId }, select: { id: true } }),
     ]);
     if (!location) throw new Error("The selected purchase location is unavailable.");
-    if (!stockLocation) throw new Error("Select Dispensary or Store to receive this stock.");
+    if (!stockLocation) throw new Error("Select Counter or Store to receive this stock.");
     if (!supplier) throw new Error("The selected supplier is unavailable.");
 
     const lines = data.items.map((line) => ({

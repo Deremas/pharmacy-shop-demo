@@ -2,7 +2,7 @@
 
 Pharmacy inventory, sales, purchasing, and branch management for Bole, Piazza, and Merkato. Built with Next.js and Prisma.
 
-Each branch has its own dispensary stock, store stock, sales, and finance.
+Each branch has its own counter stock, store stock, sales, and finance.
 
 ## Run Locally
 

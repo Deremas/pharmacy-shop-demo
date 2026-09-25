@@ -5,7 +5,7 @@ const moneyInput = z.coerce.number().finite().nonnegative();
 export const createPurchaseSchema = z.object({
   supplierId: z.string().trim().min(1, "Select a supplier."),
   locationId: z.string().trim().min(1, "Select a purchase location."),
-  stockLocationId: z.string().trim().min(1, "Select Dispensary or Store to receive this stock."),
+  stockLocationId: z.string().trim().min(1, "Select Counter or Store to receive this stock."),
   purchaseDate: z.coerce.date(),
   totalAmount: moneyInput,
   paidAmount: moneyInput.default(0),

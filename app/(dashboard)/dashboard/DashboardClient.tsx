@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useAppData } from "@/lib/client/useAppData";
+import { isStoreLocationId } from "@/lib/businesses";
 import { useSession } from "next-auth/react";
 import { saleProfit } from "@/lib/sales-utils";
 import { formatUnitLabel, itemVariant } from "@/lib/item-display";
@@ -46,9 +47,13 @@ export default function Dashboard() {
       ? sales.filter((s) => s.locationId === currentLocation.id)
       : sales
     : [];
+  const stockRows =
+    can("inventory.store.view")
+      ? items
+      : items.filter((row) => !isStoreLocationId(row.locationId));
   const locationItems =
     can("inventory.stock.view") || can("inventory.items.view")
-      ? aggregateCatalogStock(uniqueCatalogItems<any>(products, items), items)
+      ? aggregateCatalogStock(uniqueCatalogItems<any>(products, stockRows), stockRows)
       : [];
   const locationPurchases = can("purchases.view")
     ? currentLocation

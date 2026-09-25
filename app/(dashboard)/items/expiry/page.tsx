@@ -3,19 +3,23 @@
 import React, { useMemo, useState } from "react";
 import { useAppData } from "@/lib/client/useAppData";
 import { useCan } from "@/lib/client/useCan";
+import { isStoreLocationId } from "@/lib/businesses";
 import { daysUntilExpiry, expiryBand, isBatchExpired } from "@/lib/inventory/fefo";
 import { formatUnitLabel } from "@/lib/item-display";
 
 export default function ExpiryPage() {
   const { inventoryBatches = [], items = [], products = [], currentLocation, disposeBatch } = useAppData();
   const can = useCan();
+  const visibleBatches = can("inventory.store.view")
+    ? inventoryBatches
+    : inventoryBatches.filter((batch: { locationId?: string }) => !isStoreLocationId(batch.locationId));
   const [band, setBand] = useState("All");
   const [busyId, setBusyId] = useState("");
 
   const rows = useMemo(() => {
     const names = new Map<string, any>();
     for (const item of [...products, ...items]) names.set(item.id, item);
-    return inventoryBatches
+    return visibleBatches
       .filter((batch: any) => Number(batch.remainingQuantity) > 0)
       .map((batch: any) => {
         const item = names.get(batch.itemId);
@@ -31,7 +35,7 @@ export default function ExpiryPage() {
       })
       .filter((row: any) => band === "All" || row.band === band)
       .sort((left: any, right: any) => (left.days ?? 99999) - (right.days ?? 99999));
-  }, [band, inventoryBatches, items, products]);
+  }, [band, visibleBatches, items, products]);
 
   const dispose = async (row: any) => {
     const reason = window.prompt("Disposal reason", row.band === "Expired" ? "Expired" : "Near expiry");

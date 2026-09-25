@@ -188,6 +188,21 @@ export async function ensureDefaultPermissionsAndRoles(force = false) {
     });
   }
 
+  const storePermissionId = allByKey.get("inventory.store.view");
+  const stockPermissionId = allByKey.get("inventory.stock.view");
+  if (storePermissionId && stockPermissionId) {
+    const stockRoles = await prisma.rolePermission.findMany({
+      where: { permissionId: stockPermissionId },
+      select: { roleId: true },
+    });
+    await prisma.rolePermission.createMany({
+      data: stockRoles
+        .filter((entry) => entry.roleId !== salesRole?.id)
+        .map((entry) => ({ roleId: entry.roleId, permissionId: storePermissionId })),
+      skipDuplicates: true,
+    });
+  }
+
   const managerRole = await prisma.role.findFirst({ where: { name: MANAGER_ROLE, isActive: true } });
   if (managerRole) {
     const reportPermissionIds = permissions

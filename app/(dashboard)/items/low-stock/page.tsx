@@ -3,12 +3,16 @@
 import React from "react";
 import { AlertTriangle, ChevronDown, Search } from "lucide-react";
 import { useAppData } from "@/lib/client/useAppData";
+import { useCan } from "@/lib/client/useCan";
+import { isStoreLocationId } from "@/lib/businesses";
 import { formatItemChoiceLabel, formatUnitLabel, itemVariant } from "@/lib/item-display";
 import { aggregateCatalogStock, alertLevelForStock, thresholdForItem, uniqueCatalogItems } from "@/lib/stock";
 import { cn } from "@/lib/utils";
 
 export default function LowStockPage() {
   const { items = [], products = [], currentLocation } = useAppData();
+  const canViewStore = useCan()("inventory.store.view");
+  const stockRows = canViewStore ? items : items.filter((row: { locationId?: string }) => !isStoreLocationId(row.locationId));
   const [search, setSearch] = React.useState("");
   const [category, setCategory] = React.useState("");
   const [alertLevel, setAlertLevel] = React.useState("");
@@ -18,8 +22,8 @@ export default function LowStockPage() {
     [items, products],
   );
   const combinedItems = React.useMemo(
-    () => aggregateCatalogStock(catalog, items),
-    [catalog, items],
+    () => aggregateCatalogStock(catalog, stockRows),
+    [catalog, stockRows],
   );
   const categories = React.useMemo<string[]>(
     () => Array.from(new Set<string>(combinedItems.map((item: any) => String(item.category || "")).filter(Boolean))).sort(),
@@ -27,8 +31,9 @@ export default function LowStockPage() {
   );
 
   const lowStockItems = combinedItems.filter((item: any) => {
+    const onHand = canViewStore ? Number(item.stock || 0) : Number(item.shopStock || 0);
     const threshold = thresholdForItem(item);
-    const level = alertLevelForStock(Number(item.stock || 0), threshold);
+    const level = alertLevelForStock(onHand, threshold);
     const q = search.trim().toLowerCase();
     return (
       level !== "Healthy" &&
@@ -45,7 +50,11 @@ export default function LowStockPage() {
           <AlertTriangle className="h-5 w-5 text-amber-500 sm:h-7 sm:w-7" />
           Low Stock Alerts
         </h1>
-        <p className="mt-1 text-slate-500">Items below their configured minimum, using combined shop + store quantity.</p>
+        <p className="mt-1 text-slate-500">
+          {canViewStore
+            ? "Items below their configured minimum, using combined counter and store quantity."
+            : "Items below their configured minimum at the counter."}
+        </p>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -71,16 +80,17 @@ export default function LowStockPage() {
                 <th className="px-6 py-4 text-left">Item</th>
                 <th className="px-6 py-4 text-left">Category</th>
                 <th className="px-6 py-4 text-center">Counter</th>
-                <th className="px-6 py-4 text-center">Store</th>
-                <th className="px-6 py-4 text-center">Total</th>
+                {canViewStore ? <th className="px-6 py-4 text-center">Store</th> : null}
+                {canViewStore ? <th className="px-6 py-4 text-center">Total</th> : null}
                 <th className="px-6 py-4 text-center">Threshold</th>
                 <th className="px-6 py-4 text-center">Alert</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
               {lowStockItems.map((item: any) => {
+                const onHand = canViewStore ? Number(item.stock || 0) : Number(item.shopStock || 0);
                 const threshold = thresholdForItem(item);
-                const level = alertLevelForStock(Number(item.stock || 0), threshold);
+                const level = alertLevelForStock(onHand, threshold);
                 const variant = itemVariant(item, currentLocation?.id);
                 const itemName = variant.sizeLabel && variant.sizeLabel.toLowerCase() !== variant.style.toLowerCase()
                   ? `${variant.style} ${variant.sizeLabel}`
@@ -91,7 +101,8 @@ export default function LowStockPage() {
                     <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{itemName}</td>
                     <td className="whitespace-nowrap px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300">{item.category}</td>
                     <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">{item.shopStock} {formatUnitLabel(item)}</td>
-                    <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">{item.storeStock} {formatUnitLabel(item)}</td>
+                    {canViewStore ? <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">{item.storeStock} {formatUnitLabel(item)}</td> : null}
+                    {canViewStore ? (
                     <td className="px-6 py-4 text-center">
                       <span className={cn(
                         "rounded-lg p-1.5 text-xs font-black",
@@ -100,6 +111,7 @@ export default function LowStockPage() {
                         {item.stock} {formatUnitLabel(item)} LEFT
                       </span>
                     </td>
+                    ) : null}
                     <td className="px-6 py-4 text-center text-xs font-bold text-slate-500">{threshold} {formatUnitLabel(item)}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={cn(
@@ -116,7 +128,7 @@ export default function LowStockPage() {
               })}
               {lowStockItems.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
+                  <td colSpan={canViewStore ? 8 : 6} className="px-6 py-14 text-center text-xs font-black uppercase tracking-widest text-slate-500">
                     No low stock alerts found
                   </td>
                 </tr>

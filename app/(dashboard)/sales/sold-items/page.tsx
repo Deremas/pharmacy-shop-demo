@@ -78,7 +78,7 @@ export default function SoldItemsPage() {
             }}
             className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black uppercase tracking-widest text-slate-600 outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-900"
           >
-            <option value="">Dispensary / Store</option>
+            <option value="">Counter / Store</option>
             {businessLocations.map((location: any) => (
               <option key={location.id} value={location.id}>{location.name}</option>
             ))}

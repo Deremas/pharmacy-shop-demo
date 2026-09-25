@@ -108,7 +108,7 @@ export function TransactionsClient({
           </div>
           {locations.length > 1 ? (
           <MultiSelectDropdown
-            label="Dispensary / Store"
+            label="Counter / Store"
             allLabel="All"
             options={locations.map((location) => ({ value: location.id, label: location.name }))}
             selected={locationFilters}

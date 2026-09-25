@@ -56,7 +56,7 @@ export function StockView({
   const scopedLocations = locations.filter((location: any) => matchesStockView(location.type, locationType));
 
   React.useEffect(() => {
-    if (matchesStockView(currentLocation?.type, locationType)) {
+    if (currentLocation && matchesStockView(currentLocation.type, locationType)) {
       setLocationId(currentLocation.id);
       return;
     }
@@ -76,7 +76,7 @@ export function StockView({
 
     const targetLocations = locationId
       ? scopedLocations.filter((location: any) => location.id === locationId)
-      : matchesStockView(currentLocation?.type, locationType)
+      : currentLocation && matchesStockView(currentLocation.type, locationType)
         ? scopedLocations.filter((location: any) => location.id === currentLocation.id)
         : scopedLocations;
 
@@ -264,7 +264,7 @@ export function StockView({
             />
           </div>
           {scopedLocations.length > 1 ? (
-            <Select value={locationId} onChange={setLocationId} label="Dispensary / Store" options={scopedLocations.map((location: any) => ({ value: location.id, label: location.name }))} />
+            <Select value={locationId} onChange={setLocationId} label="Counter / Store" options={scopedLocations.map((location: any) => ({ value: location.id, label: location.name }))} />
           ) : null}
           <Select value={category} onChange={setCategory} label="All Categories" options={categories.map((entry) => ({ value: entry, label: entry }))} />
           <Select value={status} onChange={setStatus} label="All Status" options={["In Stock", "Low Stock", "Out of Stock"].map((entry) => ({ value: entry, label: entry }))} />

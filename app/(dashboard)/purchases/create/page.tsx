@@ -295,7 +295,7 @@ export default function NewPurchasePage() {
       return;
     }
     if (!currentLocation?.id || !stockLocationIdsFor(currentLocation.id).includes(stockLocationId)) {
-      return alert("Select Dispensary or Store to receive this stock.");
+      return alert("Select Counter or Store to receive this stock.");
     }
 
     let paidAmount = 0;

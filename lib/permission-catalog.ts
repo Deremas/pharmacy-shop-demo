@@ -8,6 +8,7 @@ export const PERMISSION_CATALOG = [
   { module: "Inventory", key: "inventory.categories.view", label: "View categories" },
   { module: "Inventory", key: "inventory.categories.manage", label: "Manage categories" },
   { module: "Inventory", key: "inventory.stock.view", label: "View stock" },
+  { module: "Inventory", key: "inventory.store.view", label: "View store stock" },
   { module: "Inventory", key: "inventory.stock.adjust", label: "Adjust stock" },
   { module: "Inventory", key: "inventory.transfers.view", label: "View stock transfers" },
   { module: "Inventory", key: "inventory.transfers.create", label: "Create stock transfers" },

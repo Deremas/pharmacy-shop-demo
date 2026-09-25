@@ -1045,7 +1045,7 @@ function buildReportRows(
               Code: movement.itemCode || product?.code || "-",
               Item: movement.itemName || product?.name || movement.itemId,
               Category: movement.category || product?.category || "-",
-              "Dispensary / Store": movement.locationName || locationName(movement.locationId),
+              "Counter / Store": movement.locationName || locationName(movement.locationId),
               Qty: qty,
               "Est. Unit Cost": formatCurrency(unitCost),
               "Est. Cost": formatCurrency(cost),

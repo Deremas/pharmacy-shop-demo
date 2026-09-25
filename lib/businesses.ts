@@ -254,7 +254,7 @@ export function isStoreLocationId(locationId?: string | null) {
 
 export function stockLocationLabel(locationId?: string | null, type?: string | null) {
   if (isStoreLocation(type) || isStoreLocationId(locationId)) return "Store";
-  return "Dispensary";
+  return "Counter";
 }
 
 export function belongsToBusiness(locationId: string | null | undefined, businessId: string | null | undefined) {
