@@ -787,13 +787,14 @@ export default function NewSalePage() {
         <input value={prescriberName} onChange={(event) => setPrescriberName(event.target.value)} placeholder="Prescriber" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none dark:border-zinc-700 dark:bg-zinc-950" />
       </div>
 
-      <div className="create-actions">
-          <p className="w-full text-xs font-medium leading-5 text-slate-500">
-            Send to cashier keeps these units reserved and opens the cashier queue. No money is recorded yet. Save sale records the sale and reduces stock now.
+      <div className="mt-auto flex flex-col gap-3 border-t border-slate-200 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-zinc-800">
+          <p className="text-xs font-medium text-slate-500">
+            Send to cashier holds the stock. Save sale takes the money now.
           </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
           <button
             onClick={handleCancel}
-            className="btn-cancel flex-1 rounded-2xl px-6 sm:flex-none sm:px-8"
+            className="btn-cancel w-full rounded-2xl px-6 sm:w-auto sm:px-8"
           >
             Cancel
           </button>
@@ -801,14 +802,14 @@ export default function NewSalePage() {
             type="button"
             onClick={() => handleSave("HOLD")}
             disabled={saving}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-black uppercase tracking-widest text-amber-800 disabled:opacity-60 sm:flex-none sm:px-8"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-black uppercase tracking-widest text-amber-800 disabled:opacity-60 sm:w-auto sm:px-8"
           >
             Send to cashier
           </button>
           <button
               onClick={() => handleSave("COMPLETE")}
               disabled={saving}
-              className="flex flex-1 items-center justify-center gap-2 px-4 py-3 bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black shadow-xl shadow-indigo-900/30 hover:bg-indigo-500 active:scale-95 transition-all uppercase tracking-widest sm:flex-none sm:px-8"
+              className="flex w-full items-center justify-center gap-2 px-4 py-3 bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black shadow-xl shadow-indigo-900/30 hover:bg-indigo-500 active:scale-95 transition-all uppercase tracking-widest sm:w-auto sm:px-8"
             >
               {saving ? (
                 <>
@@ -840,6 +841,7 @@ export default function NewSalePage() {
                 </>
               )}
           </button>
+          </div>
       </div>
 
       <AppModal

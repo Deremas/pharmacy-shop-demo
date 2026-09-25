@@ -269,7 +269,7 @@ export default function PosPage() {
                 }}
               />
             </div>
-            <CodeScanButton label="Scan pack code" className="h-12 w-12" onScan={applyScan} />
+            <CodeScanButton label="Scan" showLabel onScan={applyScan} />
           </div>
         </div>
 
