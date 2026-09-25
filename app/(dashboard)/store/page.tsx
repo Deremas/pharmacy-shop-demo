@@ -41,7 +41,9 @@ export function StockView({
   const [adjustQuantity, setAdjustQuantity] = React.useState("");
   const [adjustReason, setAdjustReason] = React.useState("");
   const [adjustReceipt, setAdjustReceipt] = React.useState<ReceiptBatchValue>(emptyReceipt);
-  const [adjustBatchId, setAdjustBatchId] = React.useState("new");
+  const [adjustBatchId, setAdjustBatchId] = React.useState("");
+  const [adjustBuyingPrice, setAdjustBuyingPrice] = React.useState("");
+  const [adjustSellingPrice, setAdjustSellingPrice] = React.useState("");
   const [adjustError, setAdjustError] = React.useState("");
   const [batchItem, setBatchItem] = React.useState<any>(null);
   const [stockEntryItem, setStockEntryItem] = React.useState<any>(null);
@@ -115,13 +117,28 @@ export function StockView({
   const totalValue = filteredStock.reduce((sum: number, item: any) => sum + Number(item.stock || 0) * Number(item.price || 0), 0);
   const totalQty = filteredStock.reduce((sum: number, item: any) => sum + Number(item.stock || 0), 0);
 
+  const seedPrices = (item: any, batches: Array<{ buyingPrice?: number; sellingPrice?: number; createdAt?: string }>) => {
+    const latest = [...batches].sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime())[0];
+    setAdjustBuyingPrice(String(Number(latest?.buyingPrice ?? item?.buyingPrice ?? 0)));
+    setAdjustSellingPrice(String(Number(latest?.sellingPrice ?? item?.sellingPrice ?? item?.price ?? 0)));
+  };
+
   const openAdjustment = (item: any) => {
     setAdjustingItem(item);
-    setAdjustQuantity(String(item.stock || 0));
     setAdjustReason("");
     setAdjustReceipt(emptyReceipt());
     const batches = openBatches(inventoryBatches, item.id, item.locationId);
-    setAdjustBatchId(soonestBatch(batches)?.id || "new");
+    seedPrices(item, batches);
+    if (batches.length > 1) {
+      setAdjustBatchId("");
+      setAdjustQuantity("");
+    } else if (batches.length === 1) {
+      setAdjustBatchId(batches[0].id);
+      setAdjustQuantity(String(Number(batches[0].remainingQuantity || 0)));
+    } else {
+      setAdjustBatchId("new");
+      setAdjustQuantity("");
+    }
     setAdjustError("");
   };
 
@@ -129,40 +146,53 @@ export function StockView({
     event.preventDefault();
     if (!adjustingItem) return;
     setAdjustError("");
-    const nextQuantity = Number(adjustQuantity);
-    const currentQuantity = Number(adjustingItem.stock || 0);
-    const delta = nextQuantity - currentQuantity;
+    const entered = Number(adjustQuantity);
+    const locationTotal = Number(adjustingItem.stock || 0);
     const batches = openBatches(inventoryBatches, adjustingItem.id, adjustingItem.locationId);
     const selectedBatch = batches.find((batch) => batch.id === adjustBatchId);
-    if (delta !== 0 && batches.length > 0 && !adjustBatchId) {
-      setAdjustError("Choose the batch this adjustment applies to.");
+    let delta = 0;
+    if (batches.length > 1 && !selectedBatch && adjustBatchId !== "new") {
+      setAdjustError("Choose which batch this number belongs to.");
       return;
     }
     if (adjustBatchId === "new") {
-      if (delta < 0) {
-        setAdjustError("A new batch can only receive added stock. Choose an existing batch to reduce.");
+      if (!Number.isFinite(entered) || entered <= 0) {
+        setAdjustError("Type how many you are adding.");
         return;
       }
-      if (delta > 0) {
-        try {
-          parseReceiptBatch(adjustReceipt);
-        } catch (error) {
-          setAdjustError(error instanceof Error ? error.message : "Enter the batch for the added quantity.");
-          return;
-        }
+      const buying = Number(adjustBuyingPrice);
+      const selling = Number(adjustSellingPrice);
+      if (!Number.isFinite(buying) || buying < 0 || !Number.isFinite(selling) || selling < 0) {
+        setAdjustError("Enter the buying price and the selling price for this batch.");
+        return;
       }
-    } else if (delta < 0 && selectedBatch && Math.abs(delta) > Number(selectedBatch.remainingQuantity || 0)) {
-      setAdjustError(`Batch ${selectedBatch.batchCode || ""} only has ${Number(selectedBatch.remainingQuantity || 0)} left.`);
-      return;
+      try {
+        parseReceiptBatch(adjustReceipt);
+      } catch (error) {
+        setAdjustError(error instanceof Error ? error.message : "Enter the batch number and expiry for the stock you are adding.");
+        return;
+      }
+      delta = entered;
+    } else {
+      if (!selectedBatch) {
+        setAdjustError("Choose a batch.");
+        return;
+      }
+      const onThisBatch = Number(selectedBatch.remainingQuantity || 0);
+      if (!Number.isFinite(entered) || entered < 0) {
+        setAdjustError("Type how many should be left on this batch.");
+        return;
+      }
+      delta = entered - onThisBatch;
     }
     try {
       await adjustStock({
         itemId: adjustingItem.id,
         locationId: adjustingItem.locationId,
-        quantity: nextQuantity,
+        quantity: locationTotal + delta,
         reason: adjustReason,
         inventoryBatchId: adjustBatchId,
-        ...(adjustBatchId === "new" ? adjustReceipt : {}),
+        ...(adjustBatchId === "new" ? { ...adjustReceipt, buyingPrice: Number(adjustBuyingPrice), sellingPrice: Number(adjustSellingPrice) } : {}),
       });
       setAdjustingItem(null);
     } catch (error) {
@@ -407,43 +437,60 @@ export function StockView({
               <div>
                 <h2 id="stock-adjust-title" className="text-lg font-black text-slate-950 dark:text-white">Stock Adjustment</h2>
                 <p className="mt-1 text-xs font-semibold text-slate-500">{adjustingItem?.name} at {locations.find((location: any) => location.id === adjustingItem?.locationId)?.name}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Change the count on one batch. The other batches stay the same.</p>
               </div>
               <button type="button" onClick={() => setAdjustingItem(null)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:hover:bg-zinc-800">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl bg-slate-50 p-4 dark:bg-zinc-950">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Current Qty</p>
-                <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">{adjustingItem?.stock}</p>
-              </div>
-              <label className="block">
-                <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Correct Qty</span>
-                <NumericInput
-                  min={0}
-                  value={adjustQuantity}
-                  onValueChange={(qty) => setAdjustQuantity(String(qty))}
-                  className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-black outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950"
-                  required
-                />
-              </label>
-            </div>
-
             {(() => {
               const batches = openBatches(inventoryBatches, adjustingItem?.id, adjustingItem?.locationId);
               const selected = batches.find((batch) => batch.id === adjustBatchId);
-              const delta = Number(adjustQuantity) - Number(adjustingItem?.stock || 0);
+              const addingNew = adjustBatchId === "new";
+              const waitingForBatch = batches.length > 1 && !selected && !addingNew;
+              const onThisBatch = Number(selected?.remainingQuantity || 0);
+              const entered = Number(adjustQuantity);
+              const delta = addingNew ? entered : entered - onThisBatch;
+              const batchLabel = selected
+                ? `${selected.batchCode || "This batch"} · ${formatExpiryDay(selected.expireDate)}`
+                : "";
+              const guide = waitingForBatch
+                ? "This medicine has more than one batch. Choose the batch first. The number you type belongs only to that batch."
+                : addingNew
+                ? entered > 0
+                  ? `You are adding ${entered}. Type the number on the carton, or press Internal if there is no number. Choose the expiry, then the buying price and the selling price for this batch.`
+                  : "Type how many you are putting in, the number on the carton, the expiry, the buying price, and the selling price."
+                : !Number.isFinite(entered)
+                  ? `This batch has ${onThisBatch}. Type the number you counted on the shelf.`
+                  : delta > 0
+                    ? `${batchLabel} goes from ${onThisBatch} to ${entered}. The batch number and expiry stay the same.`
+                    : delta < 0
+                      ? `${batchLabel} goes from ${onThisBatch} to ${entered}. The other batches stay the same.`
+                      : `${batchLabel} stays at ${onThisBatch}. Change the number if the shelf count is different.`;
               return (
-                <div className="mt-4 space-y-3">
+                <div className="space-y-3">
                   <label className="block">
-                    <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Apply to batch</span>
+                    <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Which batch</span>
                     <select
-                      aria-label="Apply to batch"
-                      value={batches.some((batch) => batch.id === adjustBatchId) ? adjustBatchId : "new"}
-                      onChange={(event) => setAdjustBatchId(event.target.value)}
+                      aria-label="Which batch"
+                      value={addingNew ? "new" : selected ? adjustBatchId : ""}
+                      onChange={(event) => {
+                        const nextId = event.target.value;
+                        setAdjustBatchId(nextId);
+                        setAdjustError("");
+                        if (nextId === "new") {
+                          setAdjustQuantity("");
+                          setAdjustReceipt(emptyReceipt());
+                          if (adjustingItem) seedPrices(adjustingItem, batches);
+                          return;
+                        }
+                        const batch = batches.find((entry) => entry.id === nextId);
+                        setAdjustQuantity(batch ? String(Number(batch.remainingQuantity || 0)) : "");
+                      }}
                       className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950"
                     >
+                      {batches.length > 1 ? <option value="" disabled>Choose a batch</option> : null}
                       {batches.map((batch) => (
                         <option key={batch.id} value={batch.id}>
                           {batch.batchCode || "Batch"} · {formatExpiryDay(batch.expireDate)} · {Number(batch.remainingQuantity || 0)} left
@@ -452,18 +499,65 @@ export function StockView({
                       <option value="new">New batch</option>
                     </select>
                   </label>
-                  <p className="text-[11px] font-semibold leading-5 text-slate-500">
-                    {selected && delta > 0
-                      ? `Adds ${delta} to ${selected.batchCode || "this batch"}. Other batches stay unchanged.`
-                      : selected && delta < 0
-                        ? `Removes ${Math.abs(delta)} from ${selected.batchCode || "this batch"} (${Number(selected.remainingQuantity || 0)} left). Other batches stay unchanged.`
-                        : adjustBatchId === "new"
-                          ? "Added units are received as a new batch with their own number and expiry."
-                          : "The correction is applied to the selected batch only."}
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-xl bg-slate-50 p-4 dark:bg-zinc-950">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        {waitingForBatch ? "Choose a batch" : addingNew ? "New batch" : "On this batch now"}
+                      </p>
+                      <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
+                        {waitingForBatch || addingNew ? "—" : onThisBatch}
+                      </p>
+                      <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                        {waitingForBatch ? "The count stays blank until you pick a batch." : addingNew ? "This is stock that is not in the list yet." : batchLabel}
+                      </p>
+                    </div>
+                    <label className="block">
+                      <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        {waitingForBatch ? "Count" : addingNew ? "How many to add" : "Change it to"}
+                      </span>
+                      <NumericInput
+                        min={0}
+                        value={waitingForBatch ? "" : adjustQuantity}
+                        disabled={waitingForBatch}
+                        onValueChange={(qty) => setAdjustQuantity(String(qty))}
+                        className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-black outline-none focus:border-indigo-500 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950"
+                        required={!waitingForBatch}
+                      />
+                    </label>
+                  </div>
+
+                  <p className="text-[11px] font-semibold leading-5 text-slate-500">{guide}</p>
+                  <p className="text-[11px] font-semibold leading-5 text-slate-400">
+                    The number you type is only for this batch. Other batches are left as they are.
                   </p>
-                  {adjustBatchId === "new" && delta > 0 ? (
-                    <div className="rounded-xl border border-slate-200 p-4 dark:border-zinc-800">
+
+                  {addingNew ? (
+                    <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-zinc-800">
                       <ReceiptBatchFields value={adjustReceipt} onChange={setAdjustReceipt} />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Buying price</span>
+                          <NumericInput
+                            min={0}
+                            value={adjustBuyingPrice}
+                            onValueChange={(price) => setAdjustBuyingPrice(String(price))}
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-950"
+                            required
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-500">Selling price</span>
+                          <NumericInput
+                            min={0}
+                            value={adjustSellingPrice}
+                            onValueChange={(price) => setAdjustSellingPrice(String(price))}
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-950"
+                            required
+                          />
+                        </label>
+                      </div>
+                      <p className="text-[11px] font-semibold leading-5 text-slate-500">These prices belong to this new batch. Other batches keep their own prices.</p>
                     </div>
                   ) : null}
                 </div>

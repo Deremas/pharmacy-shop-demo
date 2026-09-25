@@ -6,6 +6,8 @@ import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
   ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
   BarChart3,
   Boxes,
   CreditCard,
@@ -31,6 +33,7 @@ import { useAppData, useReportData } from "@/lib/client/useAppData";
 import { paginateRows, saleProfit } from "@/lib/sales-utils";
 import { ReportScopeBar, useReportScope } from "@/components/report-scope-bar";
 import { formatItemChoiceLabel } from "@/lib/item-display";
+import { isBatchExpired } from "@/lib/inventory/fefo";
 
 const categories = ["All", "Sales", "Inventory", "Procurement", "Finance", "Credit", "Administrative"] as const;
 
@@ -69,6 +72,7 @@ const reports: ReportDefinition[] = [
   { id: "slow-moving-items", title: "Slow-Moving Items", category: "Inventory", description: "Current stock with actual period sales and days since the last recorded sale.", icon: FileClock, filters: ["Locations", "Items", "Categories", "Date Range"], output: "Slow-moving stock" },
   { id: "location-transfers", title: "Location Transfers", category: "Inventory", description: "Recorded stock transfers between shop and store for the selected business.", icon: Truck, filters: ["Locations", "Date Range", "Items"], output: "Transfer list", route: "/store/transfers" },
   { id: "stock-damage", title: "Damaged / Written-off Stock", category: "Inventory", description: "Items written off as damaged or out of use, with quantity and estimated buying cost.", icon: Package, filters: ["Locations", "Date Range", "Items", "Categories"], output: "Damage write-offs", route: "/store/damage" },
+  { id: "stock-disposal", title: "Disposed Stock", category: "Inventory", description: "Expired or unsellable batches removed from the shelf, with quantity and buying-cost loss.", icon: ShieldCheck, filters: ["Locations", "Date Range", "Items", "Categories"], output: "Disposals", route: "/items/expiry" },
   { id: "batch-profit", title: "Batch Profit", category: "Inventory", description: "Profit kept on each batch after sales and returns, using the cost stored on that batch.", icon: TrendingUp, filters: ["Locations", "Items"], output: "Batch profit", route: "/reports/stock" },
   { id: "expiry-loss", title: "Expiry Loss", category: "Inventory", description: "Buying-cost value of stock that is still on hand after its expiry date.", icon: ShieldCheck, filters: ["Locations", "Items"], output: "Expiry loss", route: "/reports/stock" },
   { id: "stock-aging", title: "Stock Aging", category: "Inventory", description: "How long remaining batches have been in stock, with their buying-cost value.", icon: FileClock, filters: ["Locations", "Items"], output: "Aging", route: "/reports/stock" },
@@ -98,16 +102,17 @@ const visibleReports = reports.filter((report) => !report.hidden);
 
 const reportModules: Array<{
   id: Exclude<Category, "All">;
+  label?: string;
   description: string;
   permission: string;
   icon: React.ElementType;
 }> = [
   { id: "Sales", description: "Sale numbers, items, customers, discounts, and daily totals.", permission: "reports.sales.view", icon: ShoppingCart },
   { id: "Inventory", description: "Current stock, movements, valuation, expiry, batches, and aging.", permission: "reports.inventory.view", icon: Boxes },
-  { id: "Procurement", description: "Purchases, suppliers, and amounts still owed.", permission: "reports.inventory.view", icon: Truck },
+  { id: "Procurement", description: "Purchases, suppliers, and amounts still owed.", permission: "reports.inventory.view", icon: Truck, label: "Purchases" },
   { id: "Finance", description: "Expenses, bank movement, cash deposits, and profit.", permission: "reports.finance.view", icon: Wallet },
   { id: "Credit", description: "Customer balances and recorded credit payments.", permission: "reports.finance.view", icon: CreditCard },
-  { id: "Administrative", description: "Audit trail and activity by user.", permission: "reports.audit.view", icon: ShieldCheck },
+  { id: "Administrative", label: "Admin", description: "Audit trail and activity by user.", permission: "reports.audit.view", icon: ShieldCheck },
 ];
 
 export default function ReportsPage() {
@@ -123,6 +128,7 @@ export default function ReportsPage() {
   const scope = useReportScope(locations, state.currentLocation);
   const moduleParam = searchParams.get("module");
   const activeModule = reportModules.find((entry) => entry.id === moduleParam && canModule(entry.permission)) || null;
+  const activeTab = moduleParam === "All" || !activeModule ? "All" : activeModule.id;
   const [search, setSearch] = React.useState("");
   const [dateFrom, setDateFrom] = React.useState("");
   const [dateTo, setDateTo] = React.useState("");
@@ -134,8 +140,11 @@ export default function ReportsPage() {
     setOpenedReportId(reportId && visibleReports.some((report) => report.id === reportId) ? reportId : null);
   }, [searchParams]);
 
+  const visibleModules = reportModules.filter((entry) => canModule(entry.permission));
+  const allowedCategories = new Set(visibleModules.map((entry) => entry.id));
   const filteredReports = visibleReports.filter((report) => {
-    if (!activeModule || report.category !== activeModule.id) return false;
+    if (!allowedCategories.has(report.category)) return false;
+    if (activeTab !== "All" && report.category !== activeTab) return false;
     const searchHaystack = `${report.title} ${report.description} ${report.category} ${report.filters.join(" ")}`.toLowerCase();
     return searchHaystack.includes(search.toLowerCase());
   });
@@ -157,77 +166,36 @@ export default function ReportsPage() {
         selectedLocationId={selectedLocationId}
         onBack={() => {
           setOpenedReportId(null);
-          const moduleId = activeModule?.id || openedReport.category;
-          const allowed = reportModules.some((entry) => entry.id === moduleId && canModule(entry.permission));
-          router.push(allowed ? `/reports?module=${encodeURIComponent(moduleId)}` : "/reports");
+          router.push(activeTab === "All" ? "/reports" : `/reports?module=${encodeURIComponent(activeTab)}`);
         }}
       />
     );
   }
 
-  const visibleModules = reportModules.filter((entry) => canModule(entry.permission));
-
-  if (!activeModule) {
-    return (
-      <div className="space-y-6 pb-20 font-sans animate-in fade-in duration-500">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Reports</h1>
-          <p className="mt-1 text-sm font-semibold text-slate-500">
-            Choose a module. Each module opens its own report list and filters.
-          </p>
-        </div>
-        <ReportScopeBar label={scope.label} />
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
-          {visibleModules.map((entry) => {
-            const Icon = entry.icon;
-            const count = visibleReports.filter((report) => report.category === entry.id).length;
-            return (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => router.push(`/reports?module=${encodeURIComponent(entry.id)}`)}
-                className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <ArrowUpRight className="h-4 w-4 text-slate-400 transition group-hover:text-indigo-600" />
-                </div>
-                <h2 className="mt-4 text-lg font-black text-slate-950 dark:text-white">{entry.id}</h2>
-                <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">{entry.description}</p>
-                <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-indigo-600">{count} reports</p>
-              </button>
-            );
-          })}
-        </section>
-      </div>
-    );
-  }
+  const tabItems = [
+    { id: "All", label: "All", count: visibleReports.filter((report) => allowedCategories.has(report.category)).length },
+    ...visibleModules.map((entry) => ({
+      id: entry.id,
+      label: entry.label || entry.id,
+      count: visibleReports.filter((report) => report.category === entry.id).length,
+    })),
+  ];
+  const activeDescription = activeTab === "All"
+    ? "Every report you can open for this pharmacy."
+    : visibleModules.find((entry) => entry.id === activeTab)?.description || "";
 
   return (
     <div className="space-y-6 pb-20 font-sans animate-in fade-in duration-500">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/reports")}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-            aria-label="Back to report modules"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-600">Reports</p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-white">{activeModule.id}</h1>
-            <p className="mt-1 text-sm font-semibold text-slate-500">{activeModule.description}</p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Reports</p>
-          <p className="mt-1 text-xl font-black text-slate-950 dark:text-white">{filteredReports.length}</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">Reports</h1>
+        <p className="mt-1 text-sm font-semibold text-slate-500">{activeDescription}</p>
       </div>
+
+      <ReportTabs
+        tabs={tabItems}
+        active={activeTab}
+        onSelect={(id) => router.push(id === "All" ? "/reports" : `/reports?module=${encodeURIComponent(id)}`)}
+      />
 
       <ReportScopeBar label={scope.label} />
 
@@ -240,7 +208,7 @@ export default function ReportsPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder={`Search ${activeModule.id.toLowerCase()} reports...`}
+                placeholder="Search reports..."
                 className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm font-bold outline-none focus:border-indigo-500 dark:border-zinc-800 dark:bg-zinc-950"
               />
             </div>
@@ -265,7 +233,8 @@ export default function ReportsPage() {
               report={report}
               onOpen={() => {
                 setOpenedReportId(report.id);
-                router.push(`/reports?module=${encodeURIComponent(activeModule.id)}&report=${report.id}`);
+                const moduleQuery = activeTab === "All" ? "All" : activeTab;
+                router.push(`/reports?module=${encodeURIComponent(moduleQuery)}&report=${report.id}`);
               }}
             />
           ))}
@@ -276,6 +245,116 @@ export default function ReportsPage() {
           </p>
         ) : null}
       </section>
+    </div>
+  );
+}
+
+function ReportTabs({
+  tabs,
+  active,
+  onSelect,
+}: {
+  tabs: Array<{ id: string; label: string; count: number }>;
+  active: string;
+  onSelect: (id: string) => void;
+}) {
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = React.useState({ left: false, right: false });
+
+  const updateEdges = React.useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    setEdges({
+      left: el.scrollLeft > 8,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 8,
+    });
+  }, []);
+
+  React.useEffect(() => {
+    updateEdges();
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateEdges, { passive: true });
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateEdges);
+      observer.disconnect();
+    };
+  }, [tabs.length, updateEdges]);
+
+  React.useEffect(() => {
+    const el = scrollerRef.current?.querySelector<HTMLElement>("[data-active='true']");
+    el?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [active]);
+
+  const nudge = (direction: number) => {
+    scrollerRef.current?.scrollBy({ left: direction * 180, behavior: "smooth" });
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-label="Show earlier report groups"
+        disabled={!edges.left}
+        onClick={() => nudge(-1)}
+        className={cn(
+          "absolute left-0 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border bg-white shadow-md dark:bg-zinc-900",
+          edges.left
+            ? "border-indigo-200 text-indigo-600"
+            : "pointer-events-none border-transparent text-transparent shadow-none",
+        )}
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+      <div
+        ref={scrollerRef}
+        className={cn(
+          "flex gap-2 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          edges.left || edges.right ? "px-11" : "px-1",
+        )}
+      >
+        {tabs.map((tab) => {
+          const selected = tab.id === active;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              data-active={selected ? "true" : "false"}
+              onClick={() => onSelect(tab.id)}
+              className={cn(
+                "shrink-0 rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest",
+                selected
+                  ? "bg-indigo-600 text-white"
+                  : "bg-white text-slate-600 ring-1 ring-slate-200 dark:bg-zinc-900 dark:text-slate-300 dark:ring-zinc-700",
+              )}
+            >
+              {tab.label}
+              <span className={cn("ml-2", selected ? "text-indigo-100" : "text-slate-400")}>{tab.count}</span>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        aria-label="Show more report groups"
+        disabled={!edges.right}
+        onClick={() => nudge(1)}
+        className={cn(
+          "absolute right-0 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border bg-white shadow-md dark:bg-zinc-900",
+          edges.right
+            ? "border-indigo-200 text-indigo-600"
+            : "pointer-events-none border-transparent text-transparent shadow-none",
+        )}
+      >
+        <ChevronRight className="h-5 w-5" />
+      </button>
+      {edges.right ? (
+        <span className="pointer-events-none absolute bottom-0 right-12 text-[10px] font-black uppercase tracking-widest text-indigo-500">
+          More
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -321,7 +400,7 @@ function ReportCard({ report, onOpen }: { report: ReportDefinition; onOpen: () =
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{report.category}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{report.category === "Procurement" ? "Purchases" : report.category === "Administrative" ? "Admin" : report.category}</p>
           <h3 className="mt-1 text-sm font-black text-slate-950 transition group-hover:text-indigo-600 dark:text-white">{report.title}</h3>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">{report.description}</p>
         </div>
@@ -364,7 +443,7 @@ function ReportDetailView({
   onBack: () => void;
 }) {
   const Icon = report.icon;
-  const usesDates = !["inventory-quantity", "stock-replenishment", "zero-stock", "stock-valuation", "branch-stock-comparison", "customer-credit-aging", "supplier-payables"].includes(report.id);
+  const usesDates = !["inventory-quantity", "stock-replenishment", "zero-stock", "stock-valuation", "branch-stock-comparison", "customer-credit-aging", "supplier-payables", "batch-profit", "expiry-loss", "stock-aging"].includes(report.id);
   const [filters, setFilters] = React.useState<ReportFilters>({
     search: "",
     locationId: selectedLocationId,
@@ -417,8 +496,8 @@ function ReportDetailView({
   const expenseCategoryOptions = Array.from(new Set<string>((state.expenses || []).map((expense) => String(expense.category || "")).filter(Boolean))).sort();
   const showCustomerFilter = ["sales-by-number", "sales-list", "sold-items", "sales-by-customer", "customer-credit-aging", "customer-payment-history", "discounted-items"].includes(report.id);
   const showSupplierFilter = ["purchase-list", "purchased-items", "purchases-by-item", "purchases-by-supplier", "purchase-summary", "supplier-payables"].includes(report.id);
-  const showItemFilter = ["sold-items", "total-sales-by-item", "sales-profitability", "product-ranking", "discounted-items", "stock-valuation", "inventory-quantity", "inventory-as-of", "stock-movement-log", "location-transfers", "stock-damage", "stock-replenishment", "zero-stock", "branch-stock-comparison", "slow-moving-items", "purchased-items", "purchases-by-item"].includes(report.id);
-  const showCategoryFilter = ["sold-items", "total-sales-by-item", "sales-profitability", "product-ranking", "stock-valuation", "inventory-quantity", "inventory-as-of", "stock-replenishment", "zero-stock", "branch-stock-comparison", "slow-moving-items", "purchased-items", "stock-damage", "expense-analysis"].includes(report.id);
+  const showItemFilter = ["sold-items", "total-sales-by-item", "sales-profitability", "product-ranking", "discounted-items", "stock-valuation", "inventory-quantity", "inventory-as-of", "stock-movement-log", "location-transfers", "stock-damage", "stock-disposal", "batch-profit", "expiry-loss", "stock-aging", "stock-replenishment", "zero-stock", "branch-stock-comparison", "slow-moving-items", "purchased-items", "purchases-by-item"].includes(report.id);
+  const showCategoryFilter = ["sold-items", "total-sales-by-item", "sales-profitability", "product-ranking", "stock-valuation", "inventory-quantity", "inventory-as-of", "stock-replenishment", "zero-stock", "branch-stock-comparison", "slow-moving-items", "purchased-items", "stock-damage", "stock-disposal", "batch-profit", "expiry-loss", "stock-aging", "expense-analysis"].includes(report.id);
   const showPaymentFilter = ["sales-by-number", "sales-list", "purchase-list", "expense-analysis", "customer-payment-history"].includes(report.id);
   const showAccountFilter = ["expense-analysis", "bank-transactions", "cash-to-bank"].includes(report.id);
   const showStatusFilter = ["inventory-quantity", "stock-replenishment", "purchase-list", "sales-list"].includes(report.id);
@@ -445,7 +524,7 @@ function ReportDetailView({
               <Icon className="h-7 w-7" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-600">{report.category}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-600">{report.category === "Procurement" ? "Purchases" : report.category === "Administrative" ? "Admin" : report.category}</p>
               <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950 dark:text-white">{report.title}</h1>
               <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-slate-500">{report.description}</p>
             </div>
@@ -759,6 +838,23 @@ function buildReportRows(
     });
   });
 
+  const movementColumns = (rows: any[]) => {
+    const of = (type: string) => rows.filter((movement) => movement.type === type).reduce((sum, movement) => sum + number(movement.quantity), 0);
+    return {
+      Opening: of("OPENING_STOCK"),
+      Received: of("PURCHASE"),
+      Sold: Math.abs(of("SALE")),
+      Returned: of("SALE_RETURN"),
+      "Sale voids": of("SALE_VOID"),
+      "Transfer In": of("TRANSFER_IN"),
+      "Transfer Out": Math.abs(of("TRANSFER_OUT")),
+      "Purchase returns": Math.abs(of("PURCHASE_RETURN")),
+      Adjustments: of("ADJUSTMENT"),
+      Damaged: Math.abs(of("DAMAGE")),
+      Disposed: Math.abs(of("DISPOSAL")),
+    };
+  };
+
   switch (reportId) {
     case "sales-by-number":
       return finalize(scopedSales().flatMap((sale: any) => sale.items
@@ -981,7 +1077,7 @@ function buildReportRows(
       return finalize(stockRows().map(({ product, location, item, stock, minimum, status }: any) => {
         const itemMovements = itemLocationMovements(product.id, location.id);
         const cost = weightedStockCost(product.id, location.id);
-        return { Code: product.code || "-", Item: product.name, Category: product.category, Unit: product.unit, Branch: location.name, Opening: itemMovements.filter((movement: any) => movement.type === "OPENING_STOCK").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0), Received: itemMovements.filter((movement: any) => movement.type === "PURCHASE").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0), Sold: Math.abs(itemMovements.filter((movement: any) => movement.type === "SALE").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0)), "Transfer In": itemMovements.filter((movement: any) => movement.type === "TRANSFER_IN").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0), "Transfer Out": Math.abs(itemMovements.filter((movement: any) => movement.type === "TRANSFER_OUT").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0)), Adjustments: itemMovements.filter((movement: any) => movement.type === "ADJUSTMENT").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0), Damaged: Math.abs(itemMovements.filter((movement: any) => movement.type === "DAMAGE").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0)), "Current Quantity": stock, "Average Cost": formatCurrency(cost.average), "Selling Price": formatCurrency(number(item?.sellingPrice ?? product.price)), "Stock Cost": formatCurrency(cost.value), Minimum: minimum, Status: status, _amount: cost.value, _quantity: stock, _href: "/items" };
+        return { Code: product.code || "-", Item: product.name, Category: product.category, Unit: product.unit, Branch: location.name, ...movementColumns(itemMovements), "Current Quantity": stock, "Average Cost": formatCurrency(cost.average), "Selling Price": formatCurrency(number(item?.sellingPrice ?? product.price)), "Stock Cost": formatCurrency(cost.value), Minimum: minimum, Status: status, _amount: cost.value, _quantity: stock, _href: "/items" };
       }));
     case "inventory-as-of": {
       const cutoff = filters.dateTo ? new Date(filters.dateTo).getTime() + 86400000 - 1 : Date.now();
@@ -990,7 +1086,7 @@ function buildReportRows(
         const laterMovement = itemMovements.filter((movement: any) => new Date(movementDate(movement)).getTime() > cutoff).reduce((sum: number, movement: any) => sum + number(movement.quantity), 0);
         const throughDate = itemMovements.filter((movement: any) => new Date(movementDate(movement)).getTime() <= cutoff);
         const closing = stock - laterMovement;
-        return { "As of": new Date(cutoff).toLocaleDateString(), Code: product.code || "-", Item: product.name, Branch: location.name, Opening: throughDate.filter((movement: any) => movement.type === "OPENING_STOCK").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0), Received: throughDate.filter((movement: any) => movement.type === "PURCHASE").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0), "Transfer In": throughDate.filter((movement: any) => movement.type === "TRANSFER_IN").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0), Sold: Math.abs(throughDate.filter((movement: any) => movement.type === "SALE").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0)), "Transfer Out": Math.abs(throughDate.filter((movement: any) => movement.type === "TRANSFER_OUT").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0)), Adjustments: throughDate.filter((movement: any) => movement.type === "ADJUSTMENT").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0), Damaged: Math.abs(throughDate.filter((movement: any) => movement.type === "DAMAGE").reduce((sum: number, movement: any) => sum + number(movement.quantity), 0)), "Closing Quantity": closing, _quantity: closing };
+        return { "As of": new Date(cutoff).toLocaleDateString(), Code: product.code || "-", Item: product.name, Branch: location.name, ...movementColumns(throughDate), "Closing Quantity": closing, _quantity: closing };
       }));
     }
     case "stock-valuation":
@@ -1150,6 +1246,100 @@ function buildReportRows(
       const selectedSales = sales.filter((sale: any) => inRange(sale.saleDate) && matchesLocation(sale.locationId)); const selectedExpenses = (state.expenses || []).filter((expense: any) => inRange(expense.date) && matchesLocation(expense.locationId));
       const gross = selectedSales.reduce((sum: number, sale: any) => sum + number(sale.subTotal), 0); const discount = selectedSales.reduce((sum: number, sale: any) => sum + number(sale.discount), 0); const net = selectedSales.reduce((sum: number, sale: any) => sum + number(sale.totalAmount), 0); const cost = selectedSales.reduce((sum: number, sale: any) => sum + sale.items.reduce((lineSum: number, line: any) => lineSum + number(line.buyingPrice) * number(line.qty), 0), 0); const expenses = selectedExpenses.reduce((sum: number, expense: any) => sum + number(expense.amount), 0); const grossProfit = net - cost; const netProfit = grossProfit - expenses;
       return finalize([{ "Gross Sales": formatCurrency(gross), Discounts: formatCurrency(discount), "Net Sales": formatCurrency(net), COGS: formatCurrency(cost), "Gross Profit": formatCurrency(grossProfit), Expenses: formatCurrency(expenses), "Net Profit": formatCurrency(netProfit), "Gross Margin": net > 0 ? `${((grossProfit / net) * 100).toFixed(2)}%` : "0%", "Net Margin": net > 0 ? `${((netProfit / net) * 100).toFixed(2)}%` : "0%", _amount: netProfit }]);
+    }
+    case "stock-disposal":
+      return finalize(
+        movements
+          .filter((movement: any) => movement.type === "DISPOSAL" && inRange(movementDate(movement)) && matchesLocation(movement.locationId) && matchesItem(movement.itemId) && matchesCategory(movement.itemId, movement.category))
+          .sort((a: any, b: any) => new Date(movementDate(b)).getTime() - new Date(movementDate(a)).getTime())
+          .map((movement: any) => {
+            const batch = batches.find((entry: any) => entry.id === movement.inventoryBatchId);
+            const qty = Math.abs(number(movement.quantity));
+            const unitCost = number(batch?.buyingPrice);
+            const loss = qty * unitCost;
+            return {
+              Date: new Date(movementDate(movement)).toLocaleString(),
+              Code: movement.itemCode || "-",
+              Item: movement.itemName,
+              Batch: batch?.batchCode || "-",
+              Qty: qty,
+              "Unit Cost": formatCurrency(unitCost),
+              Loss: formatCurrency(loss),
+              Reason: movement.note || "-",
+              "Created By": movement.createdByName || "System",
+              _amount: loss,
+              _quantity: qty,
+              _href: "/items/expiry",
+            };
+          }),
+      );
+    case "batch-profit": {
+      const profit = new Map<string, { name: string; code: string; batchCode: string; sold: number; returned: number; revenue: number; cost: number }>();
+      const ensure = (batchId: string, itemId: string) => {
+        const current = profit.get(batchId);
+        if (current) return current;
+        const item = itemById(itemId);
+        const batch = batches.find((entry: any) => entry.id === batchId);
+        const next = { name: item?.name || "Medicine", code: item?.code || "-", batchCode: batch?.batchCode || "-", sold: 0, returned: 0, revenue: 0, cost: 0 };
+        profit.set(batchId, next);
+        return next;
+      };
+      sales.filter((sale: any) => sale.status !== "VOIDED" && matchesLocation(sale.locationId)).forEach((sale: any) => {
+        (sale.items || []).filter((line: any) => matchesItem(line.itemId) && matchesCategory(line.itemId)).forEach((line: any) => {
+          const row = ensure(line.inventoryBatchId, line.itemId);
+          row.sold += number(line.qty);
+          row.revenue += number(line.total);
+          row.cost += number(line.buyingPrice) * number(line.qty);
+        });
+      });
+      (state.saleReturns || []).forEach((entry: any) => {
+        (entry.lines || []).filter((line: any) => matchesItem(line.itemId)).forEach((line: any) => {
+          const row = ensure(line.inventoryBatchId, line.itemId);
+          row.returned += number(line.quantity);
+          row.revenue -= number(line.totalAmount);
+          const saleLine = sales.flatMap((sale: any) => sale.items || []).find((item: any) => item.id === line.saleItemId);
+          row.cost -= number(saleLine?.buyingPrice) * number(line.quantity);
+        });
+      });
+      return finalize([...profit.values()].filter((row) => row.sold > 0).map((row) => ({
+        Code: row.code,
+        Item: row.name,
+        Batch: row.batchCode,
+        Sold: row.sold,
+        Returned: row.returned,
+        Revenue: formatCurrency(row.revenue),
+        Cost: formatCurrency(row.cost),
+        Profit: formatCurrency(row.revenue - row.cost),
+        _amount: row.revenue - row.cost,
+        _quantity: row.sold,
+      })));
+    }
+    case "expiry-loss":
+      return finalize(batches.filter((batch: any) => number(batch.remainingQuantity) > 0 && isBatchExpired(batch.expireDate) && matchesLocation(batch.locationId) && matchesItem(batch.itemId) && matchesCategory(batch.itemId)).map((batch: any) => {
+        const item = itemById(batch.itemId);
+        const qty = number(batch.remainingQuantity);
+        const loss = qty * number(batch.buyingPrice);
+        return { Code: item?.code || "-", Item: item?.name || batch.itemId, Batch: batch.batchCode || "-", Expiry: batch.expireDate ? String(batch.expireDate).slice(0, 10) : "-", Remaining: qty, Loss: formatCurrency(loss), _amount: loss, _quantity: qty, _href: "/items/expiry" };
+      }));
+    case "stock-aging": {
+      const ageBands = [
+        { label: "0–30 days", min: 0, max: 30 },
+        { label: "31–90 days", min: 31, max: 90 },
+        { label: "91–180 days", min: 91, max: 180 },
+        { label: "Over 180 days", min: 181, max: Infinity },
+      ];
+      const now = Date.now();
+      return finalize(ageBands.map((band) => {
+        const matches = batches.filter((batch: any) => {
+          if (number(batch.remainingQuantity) <= 0) return false;
+          if (!matchesLocation(batch.locationId) || !matchesItem(batch.itemId) || !matchesCategory(batch.itemId)) return false;
+          const age = Math.floor((now - new Date(batch.createdAt).getTime()) / 86400000);
+          return age >= band.min && age <= band.max;
+        });
+        const qty = matches.reduce((sum: number, batch: any) => sum + number(batch.remainingQuantity), 0);
+        const value = matches.reduce((sum: number, batch: any) => sum + number(batch.remainingQuantity) * number(batch.buyingPrice), 0);
+        return { "Age since received": band.label, Batches: matches.length, Quantity: qty, "Buying value": formatCurrency(value), _amount: value, _quantity: qty };
+      }));
     }
     case "audit-security":
     case "user-activity":

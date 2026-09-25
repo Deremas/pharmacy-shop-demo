@@ -228,11 +228,6 @@ const menuItems: MenuItem[] = [
         anyPermission: ["reports.view", "reports.sales.view", "reports.inventory.view", "reports.finance.view", "reports.audit.view"],
       },
       {
-        label: "Pharmacies",
-        path: "/admin/locations",
-        permission: "admin.locations.view",
-      },
-      {
         label: "User Management",
         path: "/admin/users",
         permission: "admin.users.view",

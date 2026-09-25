@@ -1839,13 +1839,20 @@ export async function POST(request: NextRequest) {
         }
         adjustedBatchId = batch.id;
       } else if (delta > 0) {
-        const receipt = parseReceiptBatch(payload);
-        const latestBatch = await tx.inventoryBatch.findFirst({
-          where: { itemId: payload.itemId, locationId: payload.locationId },
-          orderBy: { createdAt: "desc" },
+        const openCount = await tx.inventoryBatch.count({
+          where: { itemId: payload.itemId, locationId: payload.locationId, remainingQuantity: { gt: 0 }, status: "ACTIVE" },
         });
-        const buyingPrice = latestBatch?.buyingPrice ?? item.defaultBuyingPrice;
-        const sellingPrice = latestBatch?.sellingPrice ?? item.defaultSellingPrice;
+        if (openCount > 1 && requestedBatchId !== "new") {
+          throw new Error("Choose which batch this adjustment applies to.");
+        }
+        const receipt = parseReceiptBatch(payload);
+        const buyingInput = Number(payload.buyingPrice);
+        const sellingInput = Number(payload.sellingPrice);
+        if (!Number.isFinite(buyingInput) || buyingInput < 0 || !Number.isFinite(sellingInput) || sellingInput < 0) {
+          throw new Error("Enter the buying price and the selling price for this batch.");
+        }
+        const buyingPrice = asMoney(buyingInput);
+        const sellingPrice = asMoney(sellingInput);
         const existingBatch = await tx.inventoryBatch.findFirst({
           where: {
             itemId: payload.itemId,
